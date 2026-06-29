@@ -12,14 +12,14 @@ Modules:
   knowledge; works on (years, values) arrays.
 * :mod:`tipmip_gwl.io`          -- read global-mean ``tas`` NetCDF and discover
   files on disk.
-* :mod:`tipmip_gwl.cmip`        -- CMIP metadata: provenance gate, branch-year
-  decode, protocol baseline.
+* :mod:`tipmip_gwl.baseline`    -- establish the anomaly zero point: provenance
+  gate, branch-year decode, protocol piControl reference.
 * :mod:`tipmip_gwl.diagnostics` -- the driver, sanity table, and CLI.
 * :mod:`tipmip_gwl.plotting`    -- diagnostic figures (needs the ``plot`` extra).
 """
 
-from . import cmip, diagnostics, io, mapping, plotting
-from .cmip import (
+from . import baseline, diagnostics, io, mapping, plotting
+from .baseline import (
     Baseline,
     BranchInfo,
     branch_year_from_attrs,
@@ -50,7 +50,7 @@ __all__ = [
     # submodules
     "mapping",
     "io",
-    "cmip",
+    "baseline",
     "diagnostics",
     "plotting",
     # mapping

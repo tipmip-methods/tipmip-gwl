@@ -1,8 +1,10 @@
 """
-cmip.py
-=======
-CMIP metadata logic: turn the global attributes of a TIPMIP file into the
-quantities the mapping needs.
+baseline.py
+===========
+Establish the anomaly zero point for each model from its TIPMIP file: decide
+whether the run is admissible, where it branched, and what its piControl
+reference is. The provenance and branch-year steps read CMIP-standard global
+attributes; the reference is the protocol piControl mean those steps feed.
 
 It provides:
 

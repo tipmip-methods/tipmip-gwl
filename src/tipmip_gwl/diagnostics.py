@@ -19,7 +19,8 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from . import cmip, mapping
+from . import baseline as bl
+from . import mapping
 from .io import discover, load_gmsat_nc, read_attrs
 
 
@@ -59,18 +60,18 @@ def run_diagnostics(up2p0_dir, picontrol_dir, window=31, detrend=False):
         pi_path = pi_files.get(model)
 
         ru_attrs = read_attrs(ru_path)
-        ok, reason = cmip.provenance_check(ru_attrs)
+        ok, reason = bl.provenance_check(ru_attrs)
         if not ok:
             warns.append(f"EXCLUDED (provenance): {reason}")
             diags.append(ModelDiag(
-                model, None, cmip.KNOWN_BRANCH_YEARS.get(model), "excluded",
+                model, None, bl.KNOWN_BRANCH_YEARS.get(model), "excluded",
                 np.nan, np.nan, np.nan, False, np.nan, np.nan, "", warns,
             ))
             continue
 
         ru_years, ru_gmsat = load_gmsat_nc(ru_path)
-        bi = cmip.branch_year_from_attrs(ru_attrs)
-        known = cmip.KNOWN_BRANCH_YEARS.get(model)
+        bi = bl.branch_year_from_attrs(ru_attrs)
+        known = bl.KNOWN_BRANCH_YEARS.get(model)
         if known is not None and bi.year is not None and known != bi.year:
             warns.append(f"branch-year mismatch: decoded {bi.year} vs known {known}")
 
@@ -101,7 +102,7 @@ def run_diagnostics(up2p0_dir, picontrol_dir, window=31, detrend=False):
                 f"bracket branch {branch}+/-{half} -> fallback window used"
             )
 
-        base = cmip.compute_baseline(pi_years, pi_gmsat, branch, window=window, detrend=detrend)
+        base = bl.compute_baseline(pi_years, pi_gmsat, branch, window=window, detrend=detrend)
         # Verdict on FULL-RUN drift (genuine drift); the window slope is reported
         # for transparency but is dominated by short-segment variability.
         if (
