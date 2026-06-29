@@ -15,10 +15,12 @@ Modules:
 * :mod:`tipmip_gwl.baseline`    -- establish the anomaly zero point: provenance
   gate, branch-year decode, protocol piControl reference.
 * :mod:`tipmip_gwl.diagnostics` -- the driver, sanity table, and CLI.
+* :mod:`tipmip_gwl.product`     -- build the per-model time<->GWL NetCDF product
+  (the transform + diagnostics + provenance) that ships alongside the data.
 * :mod:`tipmip_gwl.plotting`    -- diagnostic figures (needs the ``plot`` extra).
 """
 
-from . import baseline, diagnostics, io, mapping, plotting
+from . import baseline, diagnostics, io, mapping, plotting, product
 from .baseline import (
     Baseline,
     BranchInfo,
@@ -28,6 +30,12 @@ from .baseline import (
 )
 from .diagnostics import ModelDiag, print_table, run_diagnostics
 from .io import discover, load_gmsat_nc, read_attrs
+from .product import (
+    NotMappable,
+    build_mapping_dataset,
+    write_mapping,
+    write_products,
+)
 from .mapping import (
     MappingConfig,
     ModelMapping,
@@ -52,6 +60,7 @@ __all__ = [
     "io",
     "baseline",
     "diagnostics",
+    "product",
     "plotting",
     # mapping
     "MappingConfig",
@@ -81,4 +90,9 @@ __all__ = [
     "run_diagnostics",
     "print_table",
     "plot_diagnostics",
+    # product
+    "NotMappable",
+    "build_mapping_dataset",
+    "write_mapping",
+    "write_products",
 ]

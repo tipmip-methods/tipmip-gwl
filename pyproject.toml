@@ -21,6 +21,7 @@ plot = ["matplotlib"]
 
 [project.scripts]
 tipmip-gwl-diagnostics = "tipmip_gwl.diagnostics:main"
+tipmip-gwl-build = "tipmip_gwl.product:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
