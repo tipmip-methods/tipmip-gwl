@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tipmip-gwl"
+version = "0.1.0"
+description = "Re-index TIPMIP ramp-up output onto a common global warming level (temperature) axis."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy",
+    "scipy",
+    "xarray",
+    "cftime",
+    "netCDF4",
+]
+
+[project.optional-dependencies]
+plot = ["matplotlib"]
+
+[project.scripts]
+tipmip-gwl-diagnostics = "tipmip_gwl.tipmip:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
