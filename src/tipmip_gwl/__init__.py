@@ -33,6 +33,7 @@ from .io import discover, load_gmsat_nc, read_attrs
 from .product import (
     NotMappable,
     build_mapping_dataset,
+    remap_to_gwl,
     write_mapping,
     write_products,
 )
@@ -93,6 +94,7 @@ __all__ = [
     # product
     "NotMappable",
     "build_mapping_dataset",
+    "remap_to_gwl",
     "write_mapping",
     "write_products",
 ]

@@ -33,6 +33,27 @@ to their own diagnostic variable.
 A model is skipped (not written) when it fails provenance, has no piControl, or
 branches outside the available control span.
 
+### Using a mapping file
+
+`year_of_gwl(gwl)` is the operational variable — the model year at each GWL.
+Apply it to your own diagnostic with `remap_to_gwl`, which aligns by year
+*value* and returns NaN beyond the model's range (never extrapolates):
+
+```python
+import xarray as xr
+from tipmip_gwl import remap_to_gwl
+
+mp = xr.open_dataset("mapping/gwlmap_GFDL-ESM2M_esm-up2p0_v1.nc")
+diag = xr.open_dataset("my_annual_diagnostic.nc")["mlotst"]  # on a 'year' axis
+on_gwl = remap_to_gwl(mp, diag)   # now indexed by gwl, ready to stack
+```
+
+`gwl_axis(year)` is the *forward* map (GWL as a function of year), for plotting
+and inspection only — not what you swap in as a coordinate. See
+`examples/remap_diagnostic.py`. Note: the remap interpolates linearly in time
+between annual values, so an abrupt mid-year change is smeared across the
+straddling GWL bin; supply a monthly diagnostic if sub-annual timing matters.
+
 ## File overview
 
 ```
@@ -53,6 +74,7 @@ src/tipmip_gwl/
                      piControl baseline panels). Needs the `plot` extra.
 
 examples/
-├── synthetic_demo.py   End-to-end run on synthetic data (no NetCDF needed).
-└── figures/            Diagnostic figures used in the paper.
+├── synthetic_demo.py    End-to-end run on synthetic data (no NetCDF needed).
+├── remap_diagnostic.py  Apply a mapping file to a diagnostic variable.
+└── figures/             Diagnostic figures used in the paper.
 ```

@@ -139,7 +139,9 @@ class Baseline:
     detrended: bool
 
 
-def compute_baseline(pi_years, pi_gmsat, branch_year, window=31, detrend=False) -> Baseline:
+def compute_baseline(
+    pi_years, pi_gmsat, branch_year, window=31, detrend=False, *, at_parent_start=False
+) -> Baseline:
     """Protocol piControl reference with a fallback window + method flag.
 
     Centred 31-yr mean on year A when piControl has >= window//2 years either
@@ -147,6 +149,11 @@ def compute_baseline(pi_years, pi_gmsat, branch_year, window=31, detrend=False) 
     to a *trailing* (first-``window``) mean; near the end, a *leading* (last-
     ``window``) mean. The chosen method is returned so a downstream reader knows
     a model's zero point was computed differently from the centred ones.
+
+    ``at_parent_start`` should be True only when ``branch_time_in_parent == 0``
+    (a genuine day-0 branch). Do not infer this from ``branch_year <= pi_years.min()``:
+    that condition also fires when the staged piControl starts after the branch year
+    (wrong/incomplete control).
     """
     yrs = np.asarray(pi_years, float)
     vals = np.asarray(pi_gmsat, float)
@@ -156,7 +163,9 @@ def compute_baseline(pi_years, pi_gmsat, branch_year, window=31, detrend=False) 
     if lo < yrs.min():
         start = yrs.min()
         sel = (yrs >= start) & (yrs < start + window)
-        method = f"trailing_{window}yr_day0" if branch_year <= start else f"trailing_{window}yr"
+        method = (
+            f"trailing_{window}yr_day0" if at_parent_start else f"trailing_{window}yr"
+        )
     elif hi > yrs.max():
         sel = yrs > yrs.max() - window
         method = f"leading_{window}yr"

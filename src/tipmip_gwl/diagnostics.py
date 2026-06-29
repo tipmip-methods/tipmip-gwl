@@ -102,7 +102,10 @@ def run_diagnostics(up2p0_dir, picontrol_dir, window=31, detrend=False):
                 f"bracket branch {branch}+/-{half} -> fallback window used"
             )
 
-        base = bl.compute_baseline(pi_years, pi_gmsat, branch, window=window, detrend=detrend)
+        base = bl.compute_baseline(
+            pi_years, pi_gmsat, branch, window=window, detrend=detrend,
+            at_parent_start=bi.at_parent_start,
+        )
         # Verdict on FULL-RUN drift (genuine drift); the window slope is reported
         # for transparency but is dominated by short-segment variability.
         if (

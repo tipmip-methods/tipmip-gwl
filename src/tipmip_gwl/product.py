@@ -105,7 +105,10 @@ def build_mapping_dataset(
             f"[{int(pi_years.min())}-{int(pi_years.max())}] (wrong or incomplete control)"
         )
 
-    base = bl.compute_baseline(pi_years, pi_gmsat, branch, window=window, detrend=detrend)
+    base = bl.compute_baseline(
+        pi_years, pi_gmsat, branch, window=window, detrend=detrend,
+        at_parent_start=bi.at_parent_start,
+    )
     anom = mapping.to_anomaly(ru_years, ru_gmsat, base.reference)
     T_axis, T_pre = mapping.axis_variable(
         ru_years, anom, method="running_mean", window=window, return_intermediate=True
@@ -274,6 +277,52 @@ def write_mapping(ds: xr.Dataset, outdir, filename: str | None = None) -> Path:
     path = outdir / filename
     ds.to_netcdf(path)
     return path
+
+
+def remap_to_gwl(mapping_ds, data, year_dim="year"):
+    """Remap a diagnostic from calendar time onto the common GWL grid.
+
+    This is the operational use of a mapping file: it applies ``year_of_gwl``
+    (the inverse transform t(GWL)) to your own variable, returning it indexed by
+    ``gwl`` so models can be stacked on the shared axis.
+
+    Parameters
+    ----------
+    mapping_ds : x.Dataset
+        A mapping product (from :func:`build_mapping_dataset` or a published
+        ``gwlmap_*.nc``). Only ``year_of_gwl`` and the ``gwl`` coord are used.
+    data : x.DataArray or x.Dataset
+        The diagnostic on an **annual** axis whose coordinate values are calendar
+        years (named ``year_dim``). Alignment is by coordinate *value*, so the
+        diagnostic need not start on the same year or have the same length as the
+        ramp-up; non-overlapping years simply map to NaN.
+    year_dim : str
+        Name of the annual coordinate on ``data`` (default ``"year"``).
+
+    Returns
+    -------
+    Same type as ``data``, with ``year_dim`` replaced by ``gwl``. Values are NaN
+    wherever the model never reached that GWL (``year_of_gwl`` is NaN) or where
+    the required year falls outside the diagnostic's own range -- never
+    extrapolated.
+
+    Notes
+    -----
+    ``year_of_gwl`` lands on *fractional* years (e.g. 2.0 degC at year 1964.3),
+    so the diagnostic is linearly interpolated between its annual values. For a
+    genuinely abrupt change occurring mid-year this smears the jump across the
+    straddling GWL bin. That is unavoidable at annual resolution; if sub-annual
+    timing matters for your analysis, supply a monthly diagnostic (the axis stays
+    annual, but the interpolation has finer values to land on).
+    """
+    if year_dim not in getattr(data, "dims", {}):
+        raise ValueError(
+            f"data has no {year_dim!r} dimension; pass year_dim=... with the "
+            f"name of its annual coordinate (dims: {tuple(getattr(data, 'dims', ()))})"
+        )
+    target = mapping_ds["year_of_gwl"]  # dim 'gwl', fractional years (with NaN)
+    out = data.interp({year_dim: target})
+    return out.drop_vars(year_dim, errors="ignore")
 
 
 def write_products(
