@@ -20,7 +20,7 @@ dependencies = [
 plot = ["matplotlib"]
 
 [project.scripts]
-tipmip-gwl-diagnostics = "tipmip_gwl.tipmip:main"
+tipmip-gwl-diagnostics = "tipmip_gwl.diagnostics:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

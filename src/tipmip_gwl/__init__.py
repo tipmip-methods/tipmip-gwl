@@ -5,17 +5,29 @@ Re-index TIPMIP ramp-up model output from a time axis onto a common global
 warming level (GWL / GMSAT-anomaly) axis, so models can be compared at the same
 warming level rather than the same calendar year.
 
-Two layers:
+Modules:
 
-* :mod:`tipmip_gwl.mapping` -- the pure numpy/scipy algorithm (baseline ->
+* :mod:`tipmip_gwl.mapping`     -- pure numpy/scipy algorithm (baseline ->
   anomaly -> monotone temperature axis -> invert -> resample). No file-format
   knowledge; works on (years, values) arrays.
-* :mod:`tipmip_gwl.tipmip` -- TIPMIP/NetCDF glue: read global-mean ``tas``,
-  decode branch years from CMIP metadata, enforce provenance, run diagnostics
-  and figures.
+* :mod:`tipmip_gwl.io`          -- read global-mean ``tas`` NetCDF and discover
+  files on disk.
+* :mod:`tipmip_gwl.cmip`        -- CMIP metadata: provenance gate, branch-year
+  decode, protocol baseline.
+* :mod:`tipmip_gwl.diagnostics` -- the driver, sanity table, and CLI.
+* :mod:`tipmip_gwl.plotting`    -- diagnostic figures (needs the ``plot`` extra).
 """
 
-from . import mapping, tipmip
+from . import cmip, diagnostics, io, mapping, plotting
+from .cmip import (
+    Baseline,
+    BranchInfo,
+    branch_year_from_attrs,
+    compute_baseline,
+    provenance_check,
+)
+from .diagnostics import ModelDiag, print_table, run_diagnostics
+from .io import discover, load_gmsat_nc, read_attrs
 from .mapping import (
     MappingConfig,
     ModelMapping,
@@ -30,22 +42,17 @@ from .mapping import (
     stack_models,
     to_anomaly,
 )
-from .tipmip import (
-    Baseline,
-    BranchInfo,
-    branch_year_from_attrs,
-    compute_baseline,
-    load_gmsat_nc,
-    plot_diagnostics,
-    provenance_check,
-    run_diagnostics,
-)
+from .plotting import plot_diagnostics
 
 __version__ = "0.1.0"
 
 __all__ = [
+    # submodules
     "mapping",
-    "tipmip",
+    "io",
+    "cmip",
+    "diagnostics",
+    "plotting",
     # mapping
     "MappingConfig",
     "ModelMapping",
@@ -59,13 +66,19 @@ __all__ = [
     "sensitivity_matrix",
     "stack_models",
     "to_anomaly",
-    # tipmip
+    # io
+    "load_gmsat_nc",
+    "read_attrs",
+    "discover",
+    # cmip
     "Baseline",
     "BranchInfo",
     "branch_year_from_attrs",
     "compute_baseline",
-    "load_gmsat_nc",
-    "plot_diagnostics",
     "provenance_check",
+    # diagnostics / plotting
+    "ModelDiag",
     "run_diagnostics",
+    "print_table",
+    "plot_diagnostics",
 ]
