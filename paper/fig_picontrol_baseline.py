@@ -1,0 +1,44 @@
+"""
+piControl GMSAT and baseline definitions (manuscript figure).
+
+Ramp-up / ramp-down monotone GWL axes: ``fig_mapping_axis_up_down.py``.
+
+Usage::
+
+    python paper/fig_picontrol_baseline.py \\
+        --up2p0-dir ~/data/tipmip/tas/esm-up2p0/gmstmon \\
+        --picontrol-dir ~/data/tipmip/tas/esm-piControl/gmstmon
+"""
+
+from __future__ import annotations
+
+import argparse
+import sys
+from pathlib import Path
+
+PAPER_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(PAPER_DIR))
+
+from helper_diagnostics import print_table, run_diagnostics
+from helper_plot_diagnostics import plot_diagnostics
+
+DEFAULT_OUT_DIR = PAPER_DIR / "figures"
+
+
+def main(up2p0_dir, picontrol_dir, window=31, out_dir=None):
+    diags = run_diagnostics(up2p0_dir, picontrol_dir, window=window, bundled_only=True)
+    print_table(diags)
+    out_dir = Path(out_dir) if out_dir else DEFAULT_OUT_DIR
+    _path_a, path_b = plot_diagnostics(diags, out_dir, rampup=False)
+    if path_b:
+        print(f"Saved {path_b}")
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Build piControl baseline figure.")
+    parser.add_argument("--up2p0-dir", required=True)
+    parser.add_argument("--picontrol-dir", required=True)
+    parser.add_argument("--window", type=int, default=31)
+    parser.add_argument("--out-dir", default=str(DEFAULT_OUT_DIR))
+    args = parser.parse_args()
+    main(args.up2p0_dir, args.picontrol_dir, window=args.window, out_dir=args.out_dir)

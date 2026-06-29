@@ -1,0 +1,7 @@
+# Development, paper reproduction, and tests.
+# Install with: pip install -r requirements-dev.txt
+# Or from source: pip install -e ".[paper,test]"
+
+-r requirements.txt
+matplotlib
+pytest
