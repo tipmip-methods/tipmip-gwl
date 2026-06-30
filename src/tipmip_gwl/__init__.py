@@ -16,11 +16,14 @@ Modules:
   gate, branch-year decode, protocol piControl reference.
 * :mod:`tipmip_gwl.diagnostics` -- the driver, sanity table, and CLI.
 * :mod:`tipmip_gwl.product`     -- build the per-model time<->GWL NetCDF product
-  (the transform + diagnostics + provenance) that ships alongside the data.
+  (the transform + diagnostics + provenance) that ships alongside the data, and
+  ``remap_to_gwl`` for *continuous* diagnostics.
+* :mod:`tipmip_gwl.regrid_export` -- ``remap_export_to_gwl``: forward-bin a
+  *categorical* TOAD cluster export onto the common GWL grid before MMA.
 * :mod:`tipmip_gwl.plotting`    -- diagnostic figures (needs the ``plot`` extra).
 """
 
-from . import baseline, diagnostics, io, mapping, plotting, product
+from . import baseline, diagnostics, io, mapping, plotting, product, regrid_export
 from .baseline import (
     Baseline,
     BranchInfo,
@@ -37,6 +40,7 @@ from .product import (
     write_mapping,
     write_products,
 )
+from .regrid_export import remap_export_to_gwl
 from .mapping import (
     MappingConfig,
     ModelMapping,
@@ -62,6 +66,7 @@ __all__ = [
     "baseline",
     "diagnostics",
     "product",
+    "regrid_export",
     "plotting",
     # mapping
     "MappingConfig",
@@ -97,4 +102,6 @@ __all__ = [
     "remap_to_gwl",
     "write_mapping",
     "write_products",
+    # regrid_export
+    "remap_export_to_gwl",
 ]

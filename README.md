@@ -44,8 +44,40 @@ import xarray as xr
 from tipmip_gwl import remap_to_gwl
 
 mp = xr.open_dataset("mapping/gwlmap_GFDL-ESM2M_esm-up2p0_v1.nc")
-diag = xr.open_dataset("my_annual_diagnostic.nc")["mlotst"]  # on a 'year' axis
-on_gwl = remap_to_gwl(mp, diag)   # now indexed by gwl, ready to stack
+diag = xr.open_dataset("mlotst_GFDL-ESM2M_esm-up2p0.nc")["mlotst"]  # on a 'year' axis
+on_gwl = remap_to_gwl(mp, diag)            # now indexed by 'gwl', ready to stack
+```
+
+A fuller version — selecting levels and stacking models for ensemble statistics:
+
+```python
+import xarray as xr
+from tipmip_gwl import remap_to_gwl
+
+# one model: select a level or a window once it is on the GWL axis
+mp = xr.open_dataset("mapping/gwlmap_GFDL-ESM2M_esm-up2p0_v1.nc")
+diag = xr.open_dataset("mlotst_GFDL-ESM2M_esm-up2p0.nc")["mlotst"]
+on_gwl = remap_to_gwl(mp, diag)
+print(on_gwl.sel(gwl=2.0))                 # diagnostic value at +2.0 °C
+print(on_gwl.sel(gwl=slice(1.0, 2.0)))     # the 1–2 °C window
+
+# if the diagnostic's annual axis is not called 'year', say so:
+# on_gwl = remap_to_gwl(mp, diag, year_dim="time")
+
+# many models: stack on the shared axis for ensemble statistics
+models = {
+    "GFDL-ESM2M": "mapping/gwlmap_GFDL-ESM2M_esm-up2p0_v1.nc",
+    "IPSL-CM6-ESMCO2": "mapping/gwlmap_IPSL-CM6-ESMCO2_esm-up2p0_v1.nc",
+}
+remapped = []
+for name, path in models.items():
+    mp = xr.open_dataset(path)
+    diag = xr.open_dataset(f"mlotst_{name}_esm-up2p0.nc")["mlotst"]
+    remapped.append(remap_to_gwl(mp, diag).expand_dims(model=[name]))
+
+ensemble = xr.concat(remapped, dim="model")   # (model, gwl); NaN where unreached
+print(ensemble.mean("model"))                  # ensemble mean vs GWL
+print(ensemble.std("model"))                   # inter-model spread vs GWL
 ```
 
 `gwl_axis(year)` is the *forward* map (GWL as a function of year), for plotting
@@ -53,6 +85,37 @@ and inspection only — not what you swap in as a coordinate. See
 `examples/remap_diagnostic.py`. Note: the remap interpolates linearly in time
 between annual values, so an abrupt mid-year change is smeared across the
 straddling GWL bin; supply a monthly diagnostic if sub-annual timing matters.
+
+### Remapping categorical cluster exports (for TOAD MMA)
+
+`remap_to_gwl` interpolates and is only valid for *continuous* fields. Cluster
+labels are categorical (`-1` = noise, `0,1,2,…` = events), so use
+`remap_export_to_gwl`, which **forward-bins** instead: each export year is placed
+in the GWL bin it reaches via `gwl_axis(year)`, and labels in a bin are reduced
+per pixel (non-noise wins; ties → most frequent, then lowest id). Run shift
+detection and clustering on each model's native annual axis, then remap only the
+labels just before aggregation:
+
+```text
+shift detection → clustering → remap_export_to_gwl → MMA
+```
+
+```python
+import xarray as xr
+from tipmip_gwl import remap_export_to_gwl
+
+mp = xr.open_dataset("mapping/gwlmap_GFDL-ESM2M_esm-up2p0_v1.nc")
+export = xr.open_dataset("clusters/GFDL-ESM2M_clusters.nc")  # TOAD_cluster_labels_v1
+
+# TOAD exports usually zero-base time, so restore calendar years from the mapping:
+on_gwl = remap_export_to_gwl(
+    export, mp, export_start_year=int(mp.attrs["rampup_start_year"])
+)
+# 'cluster' is now indexed by 'gwl' instead of 'time'; feed these to MMA.
+```
+
+Alignment is by calendar-year *value*. If your export already carries calendar
+years on its time coordinate, omit `export_start_year`.
 
 ## File overview
 
@@ -69,7 +132,10 @@ src/tipmip_gwl/
 ├── diagnostics.py   Driver that pairs ramp-up with piControl across models,
 │                    prints the sanity table, and backs the CLI.
 ├── product.py       Build the per-model time<->GWL NetCDF product: transform,
-│                    diagnostics, and provenance. Backs `tipmip-gwl-build`.
+│                    diagnostics, and provenance (backs `tipmip-gwl-build`), plus
+│                    `remap_to_gwl` for continuous diagnostics.
+├── regrid_export.py `remap_export_to_gwl`: forward-bin a categorical TOAD
+│                    cluster export onto the common GWL grid before MMA.
 └── plotting.py      Diagnostic figures (ramp-up anomaly overlay; per-model
                      piControl baseline panels). Needs the `plot` extra.
 
