@@ -93,17 +93,36 @@ def plot_diagnostics(diags, outdir, gwl_warn=3.0):
             )
             ax.tick_params(labelsize=7)
 
+        full_baseline = pmodels and pmodels[0].baseline_method.startswith("full_")
+        if full_baseline:
+            ref_label = "baseline reference (full piControl mean)"
+            span_label = "piControl span used for baseline"
+            outside_label = None
+        else:
+            ref_label = "baseline reference (mean over window)"
+            outside_label = "reference level (outside window)"
+            span_label = "baseline window"
         legend_handles = [
             Line2D([0], [0], color="0.55", lw=0.8, label="piControl GMSAT"),
-            Line2D([0], [0], color="C0", lw=1.2, label="baseline reference (mean over window)"),
-            Line2D([0], [0], color="C0", lw=0.6, ls=":", alpha=0.65, label="reference level (outside window)"),
-            Patch(facecolor="C0", alpha=0.15, label="baseline window"),
-            Line2D([0], [0], color="C3", ls="--", lw=1.0, label="branch year"),
+            Line2D([0], [0], color="C0", lw=1.2, label=ref_label),
         ]
+        if outside_label is not None:
+            legend_handles.append(
+                Line2D([0], [0], color="C0", lw=0.6, ls=":", alpha=0.65, label=outside_label)
+            )
+        legend_handles.extend([
+            Patch(facecolor="C0", alpha=0.15, label=span_label),
+            Line2D([0], [0], color="C3", ls="--", lw=1.0, label="branch year"),
+        ])
         for ax in axes.flat[len(pmodels):]:
             ax.set_visible(False)
 
-        figB.suptitle("piControl GMSAT and protocol baseline window")
+        title = (
+            "piControl GMSAT and full-run baseline"
+            if full_baseline
+            else "piControl GMSAT and protocol baseline window"
+        )
+        figB.suptitle(title)
         # reserve a strip at the bottom for a single-row legend
         figB.tight_layout(rect=[0, 0.06, 1, 1])
         figB.legend(handles=legend_handles, loc="lower center", ncol=5,

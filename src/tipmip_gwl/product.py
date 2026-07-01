@@ -28,6 +28,7 @@ import xarray as xr
 
 from . import baseline as bl
 from . import mapping
+from .mapping import gwl_grid
 from .io import discover, load_gmsat_nc, read_attrs
 
 
@@ -65,6 +66,7 @@ def build_mapping_dataset(
     *,
     window: int = 31,
     detrend: bool = False,
+    baseline_mode: str = "full",
     t_grid=None,
     mapping_version: str = "v1",
 ) -> xr.Dataset:
@@ -107,7 +109,7 @@ def build_mapping_dataset(
 
     base = bl.compute_baseline(
         pi_years, pi_gmsat, branch, window=window, detrend=detrend,
-        at_parent_start=bi.at_parent_start,
+        at_parent_start=bi.at_parent_start, mode=baseline_mode,
     )
     anom = mapping.to_anomaly(ru_years, ru_gmsat, base.reference)
     T_axis, T_pre = mapping.axis_variable(
@@ -175,8 +177,8 @@ def build_mapping_dataset(
                 {
                     "long_name": "linear drift of the full piControl GMSAT",
                     "units": "degC/century",
-                    "comment": "Quality flag; |drift| > 0.5 means the baseline is "
-                    "sensitive to which years the window covers.",
+                    "comment": "Quality flag on the full piControl series; "
+                    "|drift| > 0.5 degC/century suggests checking baseline choice.",
                 },
             ),
             "picontrol_drift_window": (
@@ -239,14 +241,17 @@ def build_mapping_dataset(
         "level (GWL) for the TIPMIP esm-up2p0 ramp-up leg, with the piControl "
         "baseline and mapping diagnostics. Apply the transform to your own "
         "diagnostic variables; no remapped variables are shipped.",
-        "method": "GWL(t) = smoothed(GMSAT_rampup(t)) - mean(GMSAT_piControl over a "
-        "31-yr window at the branch year). See the tipmip-gwl documentation.",
+        "method": (
+            "GWL(t) = 31-yr centred running mean of GMSAT anomaly (isotonic), "
+            f"minus piControl reference ({base.method}). "
+            "See baseline_method and tipmip-gwl documentation."
+        ),
         "source_id": str(ru_attrs.get("source_id", model)),
         "experiment_id": str(ru_attrs.get("experiment_id", "esm-up2p0")),
         "variant_label": str(ru_attrs.get("variant_label", "")),
         "grid_label": str(ru_attrs.get("grid_label", "")),
         "baseline_method": base.method,
-        "baseline_window_years": int(window),
+        "baseline_window_years": int(base.window),
         "picontrol_detrended": "true" if detrend else "false",
         "rampup_start_year": int(ru_years.min()),
         "rampup_file": Path(ru_path).name,
@@ -279,7 +284,25 @@ def write_mapping(ds: xr.Dataset, outdir, filename: str | None = None) -> Path:
     return path
 
 
-def remap_to_gwl(mapping_ds, data, year_dim="year"):
+def _year_of_gwl_target(
+    mapping_ds: xr.Dataset, gwl_step: float = 0.1, gwl_max: float = 4.0
+) -> xr.DataArray:
+    """Fractional model year at each GWL on the requested grid (for ``remap_to_gwl``)."""
+    grid = gwl_grid(gwl_step, gwl_max)
+    src_gwl = np.asarray(mapping_ds["gwl"].values, dtype=float)
+    src_years = np.asarray(mapping_ds["year_of_gwl"].values, dtype=float)
+    finite = np.isfinite(src_years) & np.isfinite(src_gwl)
+    if finite.sum() < 2:
+        raise ValueError("mapping_ds['year_of_gwl'] has too few finite values")
+    years = np.interp(
+        grid, src_gwl[finite], src_years[finite], left=np.nan, right=np.nan
+    )
+    return xr.DataArray(years, dims=["gwl"], coords={"gwl": ("gwl", grid)})
+
+
+def remap_to_gwl(
+    mapping_ds, data, year_dim="year", *, gwl_step: float = 0.1, gwl_max: float = 4.0
+):
     """Remap a diagnostic from calendar time onto the common GWL grid.
 
     This is the operational use of a mapping file: it applies ``year_of_gwl``
@@ -290,7 +313,8 @@ def remap_to_gwl(mapping_ds, data, year_dim="year"):
     ----------
     mapping_ds : x.Dataset
         A mapping product (from :func:`build_mapping_dataset` or a published
-        ``gwlmap_*.nc``). Only ``year_of_gwl`` and the ``gwl`` coord are used.
+        ``gwlmap_*.nc``). ``year_of_gwl`` is interpolated onto the grid defined
+        by ``gwl_step`` and ``gwl_max``.
     data : x.DataArray or x.Dataset
         The diagnostic on an **annual** axis whose coordinate values are calendar
         years (named ``year_dim``). Alignment is by coordinate *value*, so the
@@ -298,6 +322,10 @@ def remap_to_gwl(mapping_ds, data, year_dim="year"):
         ramp-up; non-overlapping years simply map to NaN.
     year_dim : str
         Name of the annual coordinate on ``data`` (default ``"year"``).
+    gwl_step : float
+        GWL grid spacing in degC (default ``0.1``).
+    gwl_max : float
+        Upper end of the GWL grid in degC (default ``4.0``).
 
     Returns
     -------
@@ -320,9 +348,69 @@ def remap_to_gwl(mapping_ds, data, year_dim="year"):
             f"data has no {year_dim!r} dimension; pass year_dim=... with the "
             f"name of its annual coordinate (dims: {tuple(getattr(data, 'dims', ()))})"
         )
-    target = mapping_ds["year_of_gwl"]  # dim 'gwl', fractional years (with NaN)
+    target = _year_of_gwl_target(mapping_ds, gwl_step=gwl_step, gwl_max=gwl_max)
     out = data.interp({year_dim: target})
     return out.drop_vars(year_dim, errors="ignore")
+
+
+def relabel_to_gwl(
+    mapping_ds, data, year_dim="year", *, year_offset=0.0, new_dim="gwl"
+):
+    """Relabel a model's time axis with continuous GWL via the forward map.
+
+    The *other* GWL transform. Where :func:`remap_to_gwl` resamples a diagnostic
+    onto the shared 0-4 degC grid (binned, comparable across models), this keeps
+    the data at its **native temporal resolution** and merely replaces the year
+    coordinate with the warming level reached that year -- the forward transform
+    ``gwl_axis(year)``. Each model ends up on its own GWL axis (uneven spacing,
+    not shared), which is what you want for plotting a single model against GWL
+    without losing resolution or smearing abrupt changes across bins.
+
+    Parameters
+    ----------
+    mapping_ds : xarray.Dataset
+        A mapping product. Only ``gwl_axis`` and its ``year`` coord are used.
+    data : xarray.DataArray or xarray.Dataset
+        Data on a time/year axis named ``year_dim``.
+    year_dim : str
+        Name of the time coordinate on ``data`` (default ``"year"``).
+    year_offset : float
+        Added to ``data[year_dim]`` before alignment, to turn a zero-based axis
+        into calendar years (e.g. pass the mapping's ``rampup_start_year`` for a
+        TOAD export whose time starts at 0). Default ``0.0`` (already calendar).
+    new_dim : str or None
+        Rename the relabelled dimension to this (default ``"gwl"``). Pass ``None``
+        to keep ``year_dim`` as the dimension name -- useful when a downstream tool
+        still expects the original axis name (e.g. TOAD's ``time_dim``) but with
+        GWL values.
+
+    Returns
+    -------
+    Same type as ``data``. Timesteps beyond the mapping's range (where
+    ``gwl_axis`` is undefined) are dropped rather than extrapolated. Because
+    ``gwl_axis`` is monotone non-decreasing, the relabelled axis stays sorted.
+    """
+    if year_dim not in getattr(data, "dims", {}):
+        raise ValueError(
+            f"data has no {year_dim!r} dimension; pass year_dim=... with the "
+            f"name of its time coordinate (dims: {tuple(getattr(data, 'dims', ()))})"
+        )
+    years = np.asarray(data[year_dim].values, dtype=float) + float(year_offset)
+    yr = np.asarray(mapping_ds["year"].values, dtype=float)
+    ga = np.asarray(mapping_ds["gwl_axis"].values, dtype=float)
+    finite = np.isfinite(ga)
+    if finite.sum() < 2:
+        raise ValueError("mapping_ds['gwl_axis'] has fewer than two finite values")
+    gwl = np.interp(years, yr[finite], ga[finite], left=np.nan, right=np.nan)
+
+    keep = np.isfinite(gwl)
+    out = data.isel({year_dim: keep}).assign_coords({year_dim: gwl[keep]})
+    out[year_dim].attrs.update(
+        {"long_name": "global warming level", "units": "degC"}
+    )
+    if new_dim is not None and new_dim != year_dim:
+        out = out.rename({year_dim: new_dim})
+    return out
 
 
 def write_products(
@@ -332,6 +420,7 @@ def write_products(
     *,
     window: int = 31,
     detrend: bool = False,
+    baseline_mode: str = "full",
     mapping_version: str = "v1",
 ):
     """Build and write one mapping file per mappable model in ``up2p0_dir``.
@@ -351,6 +440,7 @@ def write_products(
                 pi_files.get(model),
                 window=window,
                 detrend=detrend,
+                baseline_mode=baseline_mode,
                 mapping_version=mapping_version,
             )
         except NotMappable as exc:
@@ -377,7 +467,17 @@ def main(argv=None):
     parser.add_argument(
         "--outdir", default="./mapping", help="output dir for mapping files (default ./mapping)"
     )
-    parser.add_argument("--window", type=int, default=31)
+    parser.add_argument(
+        "--window", type=int, default=31,
+        help="smoothing window (years) for the GWL axis; also used when "
+        "--baseline-mode=window",
+    )
+    parser.add_argument(
+        "--baseline-mode",
+        choices=("full", "window"),
+        default="full",
+        help="piControl baseline: full-run mean (default) or centred window at branch year",
+    )
     parser.add_argument("--detrend-pi", action="store_true")
     parser.add_argument("--mapping-version", default="v1")
     args = parser.parse_args(argv)
@@ -388,6 +488,7 @@ def main(argv=None):
         args.outdir,
         window=args.window,
         detrend=args.detrend_pi,
+        baseline_mode=args.baseline_mode,
         mapping_version=args.mapping_version,
     )
     for model, path in written:

@@ -8,14 +8,12 @@ attributes; the reference is the protocol piControl mean those steps feed.
 
 It provides:
 
-* :func:`provenance_check` -- reject files that are not genuine TIPMIP ramp-up
-  submissions before they are mapped.
+* :func:`provenance_check` -- reject ramp-up files that fail basic CMIP linkage
+  checks (experiment id, parent run) before they are mapped.
 * :func:`branch_year_from_attrs` -- decode ``branch_time_in_parent`` against the
   parent calendar with ``cftime``, returning year A plus parent run identifiers.
-* :func:`compute_baseline` -- protocol piControl reference with an explicit
-  ``baseline_method`` flag: it falls back to a *trailing* window when the branch
-  sits at/near the start of piControl (e.g. EC-Earth branches at day 0), so that
-  per-model inconsistency is surfaced rather than silent.
+* :func:`compute_baseline` -- piControl reference as the mean over the full
+  control run (default), with an optional centred-window mode for sensitivity.
 
 Dependencies: numpy, cftime, and the sibling :mod:`tipmip_gwl.mapping`.
 """
@@ -43,23 +41,18 @@ KNOWN_BRANCH_YEARS = {
 # Provenance gate
 # ---------------------------------------------------------------------------
 def provenance_check(attrs: dict, expect_experiment: str = "esm-up2p0"):
-    """Validate that a ramp-up file is a genuine TIPMIP submission.
+    """Validate basic CMIP linkage for a ramp-up file.
 
-    Returns ``(ok, reason)``. A file failing any check is rejected before
-    mapping rather than silently processed (e.g. a file staged under a model
-    name that is actually a TerraFIRMA run, not TIPMIP).
+    Returns ``(ok, reason)``. We do **not** require ``activity_id=TIPMIP`` so
+    that models submitted under other activities (e.g. UKESM under TerraFIRMA)
+    can still be mapped when the experiment and parent linkage are correct.
 
-    ``activity_id`` is matched case-insensitively because submissions use both
-    'TIPMIP' and 'TipMIP'. ``branch_method`` is only rejected when it explicitly
-    states 'no parent'; a missing value is tolerated so that an otherwise-valid
-    file is not rejected on an absent attribute.
+    ``branch_method`` is only rejected when it explicitly states ``no parent``;
+    a missing value is tolerated.
     """
-    activity = str(attrs.get("activity_id", "")).strip()
     experiment = str(attrs.get("experiment_id", "")).strip()
     branch = str(attrs.get("branch_method", "")).strip().lower()
 
-    if "tipmip" not in activity.lower():
-        return False, f"activity_id={activity!r} is not TIPMIP"
     if expect_experiment and experiment != expect_experiment:
         return False, f"experiment_id={experiment!r} != {expect_experiment!r}"
     if branch == "no parent":
@@ -140,46 +133,60 @@ class Baseline:
 
 
 def compute_baseline(
-    pi_years, pi_gmsat, branch_year, window=31, detrend=False, *, at_parent_start=False
+    pi_years,
+    pi_gmsat,
+    branch_year,
+    window=31,
+    detrend=False,
+    *,
+    at_parent_start=False,
+    mode: str = "full",
 ) -> Baseline:
-    """Protocol piControl reference with a fallback window + method flag.
+    """piControl reference GMSAT for the anomaly zero point.
 
-    Centred 31-yr mean on year A when piControl has >= window//2 years either
-    side. If the branch is at/near the start (e.g. EC-Earth, day 0) it falls back
-    to a *trailing* (first-``window``) mean; near the end, a *leading* (last-
-    ``window``) mean. The chosen method is returned so a downstream reader knows
-    a model's zero point was computed differently from the centred ones.
-
-    ``at_parent_start`` should be True only when ``branch_time_in_parent == 0``
-    (a genuine day-0 branch). Do not infer this from ``branch_year <= pi_years.min()``:
-    that condition also fires when the staged piControl starts after the branch year
-    (wrong/incomplete control).
+    Parameters
+    ----------
+    mode : ``"full"`` or ``"window"``
+        ``"full"`` (default): mean over the entire piControl run. Robust to drift
+        when drift is small (see ``drift_full_degC_per_century``).
+        ``"window"``: centred ``window``-yr mean on ``branch_year``, with trailing/
+        leading fallbacks when the branch sits at the edge of piControl.
     """
     yrs = np.asarray(pi_years, float)
     vals = np.asarray(pi_gmsat, float)
-    half = window // 2
-
-    lo, hi = branch_year - half, branch_year + half
-    if lo < yrs.min():
-        start = yrs.min()
-        sel = (yrs >= start) & (yrs < start + window)
-        method = (
-            f"trailing_{window}yr_day0" if at_parent_start else f"trailing_{window}yr"
-        )
-    elif hi > yrs.max():
-        sel = yrs > yrs.max() - window
-        method = f"leading_{window}yr"
-    else:
-        sel = (yrs >= lo) & (yrs <= hi)
-        method = f"centred_{window}yr"
 
     g = vals.copy()
     if detrend:
         coef = np.polyfit(yrs, vals, 1)
         g = vals - np.polyval(coef, yrs) + np.polyval(coef, branch_year)
 
-    sel &= np.isfinite(g)
-    ref = float(np.mean(g[sel]))
+    finite = np.isfinite(yrs) & np.isfinite(g)
+
+    if mode == "full":
+        sel = finite
+        ref = float(np.mean(g[sel]))
+        method = "full_piControl_mean"
+    elif mode == "window":
+        half = window // 2
+        lo, hi = branch_year - half, branch_year + half
+        if lo < yrs.min():
+            start = yrs.min()
+            sel = (yrs >= start) & (yrs < start + window)
+            method = (
+                f"trailing_{window}yr_day0"
+                if at_parent_start
+                else f"trailing_{window}yr"
+            )
+        elif hi > yrs.max():
+            sel = yrs > yrs.max() - window
+            method = f"leading_{window}yr"
+        else:
+            sel = (yrs >= lo) & (yrs <= hi)
+            method = f"centred_{window}yr"
+        sel &= finite
+        ref = float(np.mean(g[sel]))
+    else:
+        raise ValueError(f"baseline mode must be 'full' or 'window', got {mode!r}")
 
     drift_win = mapping.picontrol_drift(yrs, vals, centre_year=branch_year, window=window)
     drift_full = mapping.picontrol_drift(yrs, vals)
@@ -187,7 +194,7 @@ def compute_baseline(
     return Baseline(
         reference=ref,
         method=method,
-        window=window,
+        window=window if mode == "window" else int(sel.sum()),
         n_years=int(sel.sum()),
         span=(float(yrs[sel].min()), float(yrs[sel].max())) if sel.any() else (np.nan, np.nan),
         drift_window_degC_per_century=drift_win["drift_degC_per_century"],

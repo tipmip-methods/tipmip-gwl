@@ -49,7 +49,7 @@ class ModelDiag:
     base_span_hi: float = float("nan")
 
 
-def run_diagnostics(up2p0_dir, picontrol_dir, window=31, detrend=False):
+def run_diagnostics(up2p0_dir, picontrol_dir, window=31, detrend=False, baseline_mode="full"):
     ru_files = discover(up2p0_dir)
     pi_files = discover(picontrol_dir)
     diags = []
@@ -96,7 +96,7 @@ def run_diagnostics(up2p0_dir, picontrol_dir, window=31, detrend=False):
 
         half = window // 2
         covers = (pi_years.min() <= branch - half) and (pi_years.max() >= branch + half)
-        if not covers:
+        if baseline_mode == "window" and not covers:
             warns.append(
                 f"piControl [{int(pi_years.min())}-{int(pi_years.max())}] does not "
                 f"bracket branch {branch}+/-{half} -> fallback window used"
@@ -104,7 +104,7 @@ def run_diagnostics(up2p0_dir, picontrol_dir, window=31, detrend=False):
 
         base = bl.compute_baseline(
             pi_years, pi_gmsat, branch, window=window, detrend=detrend,
-            at_parent_start=bi.at_parent_start,
+            at_parent_start=bi.at_parent_start, mode=baseline_mode,
         )
         # Verdict on FULL-RUN drift (genuine drift); the window slope is reported
         # for transparency but is dominated by short-segment variability.
@@ -187,7 +187,16 @@ def main(argv=None):
         "--picontrol-dir", required=True,
         help="directory of piControl global-mean tas .nc files",
     )
-    parser.add_argument("--window", type=int, default=31)
+    parser.add_argument(
+        "--window", type=int, default=31,
+        help="smoothing window for GWL axis; also used when --baseline-mode=window",
+    )
+    parser.add_argument(
+        "--baseline-mode",
+        choices=("full", "window"),
+        default="full",
+        help="piControl baseline: full-run mean (default) or centred window",
+    )
     parser.add_argument("--detrend-pi", action="store_true")
     parser.add_argument("--plot", action="store_true", help="write diagnostic figures")
     parser.add_argument(
@@ -197,7 +206,11 @@ def main(argv=None):
     args = parser.parse_args(argv)
 
     diags = run_diagnostics(
-        args.up2p0_dir, args.picontrol_dir, window=args.window, detrend=args.detrend_pi
+        args.up2p0_dir,
+        args.picontrol_dir,
+        window=args.window,
+        detrend=args.detrend_pi,
+        baseline_mode=args.baseline_mode,
     )
     print_table(diags)
 

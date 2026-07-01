@@ -3,7 +3,7 @@
 Re-index TIPMIP ramp-up output from a **time** axis onto a common **global warming level (GWL)** axis.
 
 1. Weighted annual-mean GMSAT for ramp-up and piControl
-2. 31-yr centred piControl baseline at the branch year
+2. 31-yr centred piControl baseline at the branch year (or full piControl mean; default)
 3. Anomaly → smooth → enforce monotonicity → invert onto a common T-grid
 
 ```bash
@@ -30,14 +30,24 @@ to their own diagnostic variable.
 - Provenance attrs: input `tracking_id`s, parent run, code version, git revision,
   `mapping_version` — so a downstream analysis can pin one exact axis.
 
-A model is skipped (not written) when it fails provenance, has no piControl, or
-branches outside the available control span.
+A model is skipped (not written) when it fails basic provenance checks, has no
+piControl, or branches outside the available control span (unless day-0 branch).
 
 ### Using a mapping file
 
-`year_of_gwl(gwl)` is the operational variable — the model year at each GWL.
-Apply it to your own diagnostic with `remap_to_gwl`, which aligns by year
-*value* and returns NaN beyond the model's range (never extrapolates):
+There are two GWL transforms, depending on whether you want a **shared** axis or
+each model's **own** axis:
+
+1. **`remap_to_gwl`** — resample a diagnostic onto the common 0–4 °C grid
+   (0.1 °C steps, shared across models). Uses the inverse `year_of_gwl(gwl)`.
+   Use this to **stack/compare models** at the same warming level.
+2. **`relabel_to_gwl`** — relabel a model's *native* time axis with continuous
+   GWL (its own, uneven, unbinned). Uses the forward `gwl_axis(year)`. Use this
+   to **plot a single model** against GWL without losing temporal resolution.
+
+`year_of_gwl(gwl)` is the operational variable for #1 — the model year at each
+GWL. `remap_to_gwl` aligns by year *value* and returns NaN beyond the model's
+range (never extrapolates):
 
 ```python
 import xarray as xr
@@ -80,11 +90,32 @@ print(ensemble.mean("model"))                  # ensemble mean vs GWL
 print(ensemble.std("model"))                   # inter-model spread vs GWL
 ```
 
-`gwl_axis(year)` is the *forward* map (GWL as a function of year), for plotting
-and inspection only — not what you swap in as a coordinate. See
-`examples/remap_diagnostic.py`. Note: the remap interpolates linearly in time
-between annual values, so an abrupt mid-year change is smeared across the
-straddling GWL bin; supply a monthly diagnostic if sub-annual timing matters.
+Note: `remap_to_gwl` interpolates linearly in time between annual values, so an
+abrupt mid-year change is smeared across the straddling GWL bin; supply a monthly
+diagnostic if sub-annual timing matters. See `examples/remap_diagnostic.py`.
+
+#### Relabel a single model's axis (transform #2)
+
+`relabel_to_gwl` keeps every timestep and just swaps the coordinate values to the
+warming level reached that year — no binning, native resolution. Good for
+plotting one model against GWL:
+
+```python
+import xarray as xr
+from tipmip_gwl import relabel_to_gwl
+
+mp = xr.open_dataset("mapping/gwlmap_GFDL-ESM2M_esm-up2p0_v1.nc")
+diag = xr.open_dataset("mlotst_GFDL-ESM2M_esm-up2p0.nc")["mlotst"]  # 'year' axis
+
+on_gwl = relabel_to_gwl(mp, diag)              # 'year' dim -> 'gwl' (native length)
+on_gwl.mean("hp_pixel").plot()                  # x-axis is now GWL (°C)
+
+# zero-based axis (e.g. a TOAD export starting at time=0): shift to calendar years
+# and keep the original dim name so downstream tools still find it:
+# on_gwl = relabel_to_gwl(mp, da, year_dim="time",
+#                         year_offset=int(mp.attrs["rampup_start_year"]),
+#                         new_dim=None)
+```
 
 ### Remapping categorical cluster exports (for TOAD MMA)
 
@@ -111,11 +142,17 @@ export = xr.open_dataset("clusters/GFDL-ESM2M_clusters.nc")  # TOAD_cluster_labe
 on_gwl = remap_export_to_gwl(
     export, mp, export_start_year=int(mp.attrs["rampup_start_year"])
 )
+# finer bins (use the same step for every model in MMA):
+# on_gwl = remap_export_to_gwl(..., gwl_step=0.05)
 # 'cluster' is now indexed by 'gwl' instead of 'time'; feed these to MMA.
 ```
 
 Alignment is by calendar-year *value*. If your export already carries calendar
-years on its time coordinate, omit `export_start_year`.
+years on its time coordinate, omit `export_start_year`. The bin grid is set by
+``gwl_step`` (default ``0.1`` degC) and ``gwl_max`` (default ``4.0``); it does
+not have to match the 0.1 degC grid stored in the mapping file. Use the same
+``gwl_step`` for all models in one MMA run. ``temporal_tolerance`` in MMA is in
+bin index units, so finer bins mean a narrower physical window.
 
 ## File overview
 
@@ -133,7 +170,8 @@ src/tipmip_gwl/
 │                    prints the sanity table, and backs the CLI.
 ├── product.py       Build the per-model time<->GWL NetCDF product: transform,
 │                    diagnostics, and provenance (backs `tipmip-gwl-build`), plus
-│                    `remap_to_gwl` for continuous diagnostics.
+│                    the two continuous transforms `remap_to_gwl` (shared grid)
+│                    and `relabel_to_gwl` (native per-model axis).
 ├── regrid_export.py `remap_export_to_gwl`: forward-bin a categorical TOAD
 │                    cluster export onto the common GWL grid before MMA.
 └── plotting.py      Diagnostic figures (ramp-up anomaly overlay; per-model

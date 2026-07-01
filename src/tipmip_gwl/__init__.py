@@ -16,8 +16,10 @@ Modules:
   gate, branch-year decode, protocol piControl reference.
 * :mod:`tipmip_gwl.diagnostics` -- the driver, sanity table, and CLI.
 * :mod:`tipmip_gwl.product`     -- build the per-model time<->GWL NetCDF product
-  (the transform + diagnostics + provenance) that ships alongside the data, and
-  ``remap_to_gwl`` for *continuous* diagnostics.
+  (the transform + diagnostics + provenance) that ships alongside the data, plus
+  the two GWL transforms for *continuous* data: ``remap_to_gwl`` (resample onto
+  the shared 0-4 degC grid) and ``relabel_to_gwl`` (relabel each model's native
+  axis with its own GWL, unbinned).
 * :mod:`tipmip_gwl.regrid_export` -- ``remap_export_to_gwl``: forward-bin a
   *categorical* TOAD cluster export onto the common GWL grid before MMA.
 * :mod:`tipmip_gwl.plotting`    -- diagnostic figures (needs the ``plot`` extra).
@@ -33,18 +35,11 @@ from .baseline import (
 )
 from .diagnostics import ModelDiag, print_table, run_diagnostics
 from .io import discover, load_gmsat_nc, read_attrs
-from .product import (
-    NotMappable,
-    build_mapping_dataset,
-    remap_to_gwl,
-    write_mapping,
-    write_products,
-)
-from .regrid_export import remap_export_to_gwl
 from .mapping import (
     MappingConfig,
     ModelMapping,
     axis_variable,
+    gwl_grid,
     invert_to_grid,
     map_model,
     monotonicity_report,
@@ -56,6 +51,15 @@ from .mapping import (
     to_anomaly,
 )
 from .plotting import plot_diagnostics
+from .product import (
+    NotMappable,
+    build_mapping_dataset,
+    relabel_to_gwl,
+    remap_to_gwl,
+    write_mapping,
+    write_products,
+)
+from .regrid_export import remap_export_to_gwl
 
 __version__ = "0.1.0"
 
@@ -71,6 +75,7 @@ __all__ = [
     # mapping
     "MappingConfig",
     "ModelMapping",
+    "gwl_grid",
     "map_model",
     "axis_variable",
     "invert_to_grid",
@@ -100,6 +105,7 @@ __all__ = [
     "NotMappable",
     "build_mapping_dataset",
     "remap_to_gwl",
+    "relabel_to_gwl",
     "write_mapping",
     "write_products",
     # regrid_export

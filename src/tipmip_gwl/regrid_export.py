@@ -32,6 +32,8 @@ from __future__ import annotations
 import numpy as np
 import xarray as xr
 
+from .mapping import gwl_grid
+
 __all__ = ["remap_export_to_gwl"]
 
 
@@ -77,6 +79,8 @@ def remap_export_to_gwl(
     *,
     label_var: str | None = None,
     export_start_year: int | None = None,
+    gwl_step: float = 0.1,
+    gwl_max: float = 4.0,
 ):
     """Remap a TOAD cluster export onto the common GWL grid by forward-binning.
 
@@ -89,8 +93,11 @@ def remap_export_to_gwl(
         are carried through unchanged. Labels are real cluster ids ``>= 0`` with
         ``-1`` for noise (NaN also treated as no-event).
     mapping : xarray.Dataset
-        A ``gwlmap_*.nc`` product for the *same model*. Must provide ``gwl``
-        (the common grid) and ``gwl_axis(year)`` (the monotone forward transform).
+        A ``gwlmap_*.nc`` product for the *same model``. Must provide
+        ``gwl_axis(year)`` (the monotone forward transform). The bin grid is
+        built from ``gwl_step`` and ``gwl_max`` (not taken from ``mapping['gwl']``,
+        so you can bin finer or coarser than the 0.1 degC grid stored in the
+        mapping product).
     label_var : str, optional
         Name of the label variable when ``export`` is a Dataset. Defaults to
         ``"cluster"`` if present, else the sole data variable.
@@ -98,12 +105,17 @@ def remap_export_to_gwl(
         Calendar year of the export's first timestep. Use this when the export
         time axis is zero-based (TOAD often subtracts the start). When omitted,
         the export's time coordinate is assumed to already hold calendar years.
+    gwl_step : float
+        Width of each GWL bin in degC (default ``0.1``). Use e.g. ``0.05`` for
+        finer bins. All models in an MMA run should use the same step.
+    gwl_max : float
+        Upper end of the GWL grid in degC (default ``4.0``).
 
     Returns
     -------
     Same type as ``export`` (DataArray or single-variable Dataset), with the
-    time dimension replaced by ``gwl`` (the mapping's common grid). Bins not
-    reached by the run, or reached only by noise, are NaN.
+    time dimension replaced by ``gwl``. Bins not reached by the run, or reached
+    only by noise, are NaN.
     """
     is_dataset = isinstance(export, xr.Dataset)
     if is_dataset:
@@ -134,7 +146,7 @@ def remap_export_to_gwl(
 
     map_years = np.asarray(mapping["year"].values, dtype=float)
     gwl_axis = np.asarray(mapping["gwl_axis"].values, dtype=float)
-    grid = np.asarray(mapping["gwl"].values, dtype=float)
+    grid = gwl_grid(gwl_step, gwl_max)
 
     finite = np.isfinite(gwl_axis)
     if finite.sum() < 2:
@@ -199,7 +211,8 @@ def remap_export_to_gwl(
     attrs = dict(da.attrs)
     attrs["remapped_to"] = "global warming level (gwl)"
     attrs["remap_method"] = (
-        "forward-binned by gwl_axis(year); per-pixel label reduction "
+        f"forward-binned by gwl_axis(year) onto {gwl_step} degC grid "
+        f"(0-{gwl_max} degC); per-pixel label reduction "
         "(non-noise wins, most frequent label, ties -> lowest id)"
     )
     result = xr.DataArray(
@@ -217,5 +230,7 @@ def remap_export_to_gwl(
         ds_out.attrs["history"] = (
             ds_out.attrs.get("history", "") + "; remapped to GWL by tipmip_gwl"
         ).lstrip("; ")
+        ds_out.attrs["gwl_step"] = gwl_step
+        ds_out.attrs["gwl_max"] = gwl_max
         return ds_out
     return result

@@ -272,6 +272,19 @@ def resample_variable(years, var, t_of_T):
 # ---------------------------------------------------------------------------
 # Orchestration
 # ---------------------------------------------------------------------------
+
+def gwl_grid(step: float = 0.1, gwl_max: float = 4.0) -> np.ndarray:
+    """Build the common GWL coordinate: 0 to ``gwl_max`` in steps of ``step`` (degC).
+
+    Endpoints are included (e.g. ``gwl_grid(0.1)`` -> 0.0, 0.1, …, 4.0).
+    """
+    if step <= 0:
+        raise ValueError(f"gwl step must be positive, got {step}")
+    if gwl_max < 0:
+        raise ValueError(f"gwl_max must be non-negative, got {gwl_max}")
+    return np.arange(0.0, gwl_max + step / 2, step)
+
+
 @dataclass
 class MappingConfig:
     window: int = 31
@@ -279,7 +292,7 @@ class MappingConfig:
     detrend_pi: bool = False
     # Common GWL grid: 0-4 degC in 0.1 steps. All clean models reach ~4 degC;
     # above that the ensemble thins and values beyond a model's range are NaN.
-    T_grid: np.ndarray = field(default_factory=lambda: np.arange(0.0, 4.0001, 0.1))
+    T_grid: np.ndarray = field(default_factory=lambda: gwl_grid())
 
 
 @dataclass
