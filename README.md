@@ -3,18 +3,28 @@
 Re-index TIPMIP ramp-up output from a **time** axis onto a common **global warming level (GWL)** axis.
 
 1. Weighted annual-mean GMSAT for ramp-up and piControl
-2. 31-yr centred piControl baseline at the branch year (or full piControl mean; default)
+2. Full piControl mean as the anomaly baseline
 3. Anomaly → smooth → enforce monotonicity → invert onto a common T-grid
 
 ```bash
 pip install -e ".[plot]"
 
+# build gmstmon (default manifest bundled in package)
+tipmip-gwl-preprocess --exp esm-piControl --outdir gmstmon/
+
 # sanity table + diagnostic figures
-tipmip-gwl-diagnostics --up2p0-dir <dir> --picontrol-dir <dir> --plot
+tipmip-gwl-diagnostics --up2p0-dir <dir> --picontrol-dir <dir> --plot --plotdir figures/
 
 # the data product: one mapping .nc per mappable model
 tipmip-gwl-build --up2p0-dir <dir> --picontrol-dir <dir> --outdir mapping/
+
+# baseline sensitivity: full piControl mean vs legacy 31-yr window at branch year
+python examples/baseline_sensitivity.py --up2p0-dir <dir> --picontrol-dir <dir>
 ```
+
+The baseline uses the **full piControl mean** (not a centred window at branch year).
+For the five mappable TIPMIP models, piControl drift is well below 0.5 °C/cy and
+|ref_full − ref_window| is at most ~0.09 K — see `examples/baseline_sensitivity.py`.
 
 ## Data product
 
@@ -30,8 +40,10 @@ to their own diagnostic variable.
 - Provenance attrs: input `tracking_id`s, parent run, code version, git revision,
   `mapping_version` — so a downstream analysis can pin one exact axis.
 
-A model is skipped (not written) when it fails basic provenance checks, has no
-piControl, or branches outside the available control span (unless day-0 branch).
+A model is skipped (not written) only when it has no matching piControl tas on
+disk. Wrong ``experiment_id`` or missing branch metadata are recorded as warnings.
+A branch year outside the staged piControl span prevents mapping (and the 31-yr
+branch reference).
 
 ### Using a mapping file
 
@@ -154,6 +166,16 @@ not have to match the 0.1 degC grid stored in the mapping file. Use the same
 ``gwl_step`` for all models in one MMA run. ``temporal_tolerance`` in MMA is in
 bin index units, so finer bins mean a narrower physical window.
 
+## Repository layout
+
+```
+src/tipmip_gwl/          Python package (mapping, baseline, preprocess, product, …)
+  data/tas_chunks.tsv      Hand-maintained Levante paths for tas time chunks
+docs/gmstmon_pipeline.md   GMSAT preprocessing guide
+scripts/                   HPC helpers (Levante preprocess, PIK pull); see scripts/README.md
+examples/                  Analysis scripts (mean_tas_piControl, baseline_sensitivity, …)
+```
+
 ## File overview
 
 ```
@@ -166,6 +188,7 @@ src/tipmip_gwl/
 ├── baseline.py      Establish each model's anomaly zero point: TIPMIP
 │                    provenance gate, branch-year decode from CMIP metadata,
 │                    and the protocol piControl reference (with drift).
+├── preprocess.py    Build gmstmon from raw tas chunks (`tipmip-gwl-preprocess`).
 ├── diagnostics.py   Driver that pairs ramp-up with piControl across models,
 │                    prints the sanity table, and backs the CLI.
 ├── product.py       Build the per-model time<->GWL NetCDF product: transform,
@@ -178,7 +201,8 @@ src/tipmip_gwl/
                      piControl baseline panels). Needs the `plot` extra.
 
 examples/
-├── synthetic_demo.py    End-to-end run on synthetic data (no NetCDF needed).
-├── remap_diagnostic.py  Apply a mapping file to a diagnostic variable.
-└── figures/             Diagnostic figures used in the paper.
+├── mean_tas_piControl.py       piControl baseline comparison figure
+├── synthetic_demo.py           End-to-end run on synthetic data (no NetCDF needed).
+├── remap_diagnostic.py         Apply a mapping file to a diagnostic variable.
+├── baseline_sensitivity.py     Full piControl mean vs legacy 31-yr window baseline.
 ```

@@ -33,8 +33,7 @@ from .io import discover, load_gmsat_nc, read_attrs
 
 
 class NotMappable(Exception):
-    """Raised when a model cannot be mapped (bad provenance, missing or wrong
-    piControl, undecodable branch year). The reason is the message."""
+    """Raised when a model cannot be mapped (e.g. no piControl tas on disk)."""
 
 
 def _git_revision() -> str:
@@ -66,24 +65,24 @@ def build_mapping_dataset(
     *,
     window: int = 31,
     detrend: bool = False,
-    baseline_mode: str = "full",
     t_grid=None,
     mapping_version: str = "v1",
 ) -> xr.Dataset:
     """Compute the full mapping for one model and return it as an xarray Dataset.
 
-    Raises :class:`NotMappable` (rather than writing a misleading file) when the
-    run fails provenance, has no usable piControl, or branches outside the
-    available control span without being a genuine day-0 branch.
+    Raises :class:`NotMappable` when no piControl tas is available for the model,
+    or when branch metadata cannot be resolved (missing year, or branch outside
+    the staged piControl span). Other metadata issues (wrong ``experiment_id``,
+    etc.) are recorded as warnings on the output dataset.
     """
     t_grid = (
         mapping.MappingConfig().T_grid if t_grid is None else np.asarray(t_grid, float)
     )
 
+    warns: list[str] = []
     ru_attrs = read_attrs(ru_path)
-    ok, reason = bl.provenance_check(ru_attrs)
-    if not ok:
-        raise NotMappable(f"provenance: {reason}")
+    warns.extend(bl.provenance_warnings(ru_attrs))
+
     if pi_path is None:
         raise NotMappable("no piControl tas available")
 
@@ -92,24 +91,14 @@ def build_mapping_dataset(
     pi_attrs = read_attrs(pi_path)
 
     bi = bl.branch_year_from_attrs(ru_attrs)
-    known = bl.KNOWN_BRANCH_YEARS.get(model)
-    branch = bi.year if bi.year is not None else known
-    if branch is None:
-        raise NotMappable("branch year could not be decoded from metadata")
-
-    # A branch earlier than the start of the staged control means the control is
-    # the wrong/incomplete run (e.g. NorESM branches at 1600, control starts
-    # 1851). A genuine day-0 branch (branch_time_in_parent == 0) is fine and uses
-    # a trailing window instead.
-    if not bi.at_parent_start and not (pi_years.min() <= branch <= pi_years.max()):
-        raise NotMappable(
-            f"branch year {branch} outside piControl span "
-            f"[{int(pi_years.min())}-{int(pi_years.max())}] (wrong or incomplete control)"
-        )
+    try:
+        branch, branch_warns = bl.resolve_branch_year(bi, model, ru_years, pi_years)
+    except ValueError as exc:
+        raise NotMappable(str(exc)) from exc
+    warns.extend(branch_warns)
 
     base = bl.compute_baseline(
-        pi_years, pi_gmsat, branch, window=window, detrend=detrend,
-        at_parent_start=bi.at_parent_start, mode=baseline_mode,
+        pi_years, pi_gmsat, branch, detrend=detrend,
     )
     anom = mapping.to_anomaly(ru_years, ru_gmsat, base.reference)
     T_axis, T_pre = mapping.axis_variable(
@@ -173,20 +162,12 @@ def build_mapping_dataset(
             ),
             "picontrol_drift": (
                 (),
-                np.float64(base.drift_full_degC_per_century),
+                np.float64(base.drift_degC_per_century),
                 {
                     "long_name": "linear drift of the full piControl GMSAT",
                     "units": "degC/century",
-                    "comment": "Quality flag on the full piControl series; "
-                    "|drift| > 0.5 degC/century suggests checking baseline choice.",
-                },
-            ),
-            "picontrol_drift_window": (
-                (),
-                np.float64(base.drift_window_degC_per_century),
-                {
-                    "long_name": "linear drift of piControl GMSAT over the baseline window",
-                    "units": "degC/century",
+                    "comment": "Quality flag; |drift| > 0.5 degC/century suggests "
+                    "checking baseline choice or using --detrend-pi.",
                 },
             ),
             "monotonization_max": (
@@ -251,7 +232,7 @@ def build_mapping_dataset(
         "variant_label": str(ru_attrs.get("variant_label", "")),
         "grid_label": str(ru_attrs.get("grid_label", "")),
         "baseline_method": base.method,
-        "baseline_window_years": int(base.window),
+        "baseline_n_years": int(base.n_years),
         "picontrol_detrended": "true" if detrend else "false",
         "rampup_start_year": int(ru_years.min()),
         "rampup_file": Path(ru_path).name,
@@ -268,6 +249,8 @@ def build_mapping_dataset(
         "created": now,
         "history": f"{now}: created by tipmip-gwl {version}",
     }
+    if warns:
+        ds.attrs["mapping_warnings"] = "; ".join(warns)
     return ds
 
 
@@ -420,7 +403,6 @@ def write_products(
     *,
     window: int = 31,
     detrend: bool = False,
-    baseline_mode: str = "full",
     mapping_version: str = "v1",
 ):
     """Build and write one mapping file per mappable model in ``up2p0_dir``.
@@ -440,7 +422,6 @@ def write_products(
                 pi_files.get(model),
                 window=window,
                 detrend=detrend,
-                baseline_mode=baseline_mode,
                 mapping_version=mapping_version,
             )
         except NotMappable as exc:
@@ -469,14 +450,7 @@ def main(argv=None):
     )
     parser.add_argument(
         "--window", type=int, default=31,
-        help="smoothing window (years) for the GWL axis; also used when "
-        "--baseline-mode=window",
-    )
-    parser.add_argument(
-        "--baseline-mode",
-        choices=("full", "window"),
-        default="full",
-        help="piControl baseline: full-run mean (default) or centred window at branch year",
+        help="smoothing window (years) for the GWL axis",
     )
     parser.add_argument("--detrend-pi", action="store_true")
     parser.add_argument("--mapping-version", default="v1")
@@ -488,7 +462,6 @@ def main(argv=None):
         args.outdir,
         window=args.window,
         detrend=args.detrend_pi,
-        baseline_mode=args.baseline_mode,
         mapping_version=args.mapping_version,
     )
     for model, path in written:

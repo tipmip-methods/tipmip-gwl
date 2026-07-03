@@ -31,9 +31,7 @@ class ModelDiag:
     branch_known: int | None
     baseline_method: str
     pi_reference: float
-    pi_drift_window: float
-    pi_drift_full: float
-    pi_covers_branch: bool
+    pi_drift: float
     max_gwl: float
     monotonization_max: float
     parent: str
@@ -49,7 +47,7 @@ class ModelDiag:
     base_span_hi: float = float("nan")
 
 
-def run_diagnostics(up2p0_dir, picontrol_dir, window=31, detrend=False, baseline_mode="full"):
+def run_diagnostics(up2p0_dir, picontrol_dir, window=31, detrend=False):
     ru_files = discover(up2p0_dir)
     pi_files = discover(picontrol_dir)
     diags = []
@@ -60,92 +58,96 @@ def run_diagnostics(up2p0_dir, picontrol_dir, window=31, detrend=False, baseline
         pi_path = pi_files.get(model)
 
         ru_attrs = read_attrs(ru_path)
-        ok, reason = bl.provenance_check(ru_attrs)
-        if not ok:
-            warns.append(f"EXCLUDED (provenance): {reason}")
-            diags.append(ModelDiag(
-                model, None, bl.KNOWN_BRANCH_YEARS.get(model), "excluded",
-                np.nan, np.nan, np.nan, False, np.nan, np.nan, "", warns,
-            ))
-            continue
+        warns.extend(bl.provenance_warnings(ru_attrs))
 
         ru_years, ru_gmsat = load_gmsat_nc(ru_path)
         bi = bl.branch_year_from_attrs(ru_attrs)
         known = bl.KNOWN_BRANCH_YEARS.get(model)
-        if known is not None and bi.year is not None and known != bi.year:
-            warns.append(f"branch-year mismatch: decoded {bi.year} vs known {known}")
 
         parent = "/".join(
-            str(x) for x in [bi.parent_source_id, bi.parent_experiment_id,
-                             bi.parent_variant_label, bi.parent_mip_era] if x
+            str(x)
+            for x in [
+                bi.parent_source_id,
+                bi.parent_experiment_id,
+                bi.parent_variant_label,
+                bi.parent_mip_era,
+            ]
+            if x
         )
 
         if pi_path is None:
             warns.append("NO piControl tas -> cannot compute protocol baseline")
-            diags.append(ModelDiag(
-                model, bi.year, known, "none", np.nan, np.nan, np.nan, False,
-                np.nan, np.nan, parent, warns,
-            ))
+            diags.append(
+                ModelDiag(
+                    model,
+                    bi.year,
+                    known,
+                    "none",
+                    np.nan,
+                    np.nan,
+                    np.nan,
+                    np.nan,
+                    parent,
+                    warns,
+                )
+            )
             continue
 
         pi_years, pi_gmsat = load_gmsat_nc(pi_path)
-        branch = bi.year if bi.year is not None else known
-        if branch is None:
-            warns.append("no branch year (attrs+known both missing)")
-            branch = int(pi_years[len(pi_years) // 2])
-
-        half = window // 2
-        covers = (pi_years.min() <= branch - half) and (pi_years.max() >= branch + half)
-        if baseline_mode == "window" and not covers:
-            warns.append(
-                f"piControl [{int(pi_years.min())}-{int(pi_years.max())}] does not "
-                f"bracket branch {branch}+/-{half} -> fallback window used"
-            )
+        branch = None
+        try:
+            branch, branch_warns = bl.resolve_branch_year(bi, model, ru_years, pi_years)
+            warns.extend(branch_warns)
+        except ValueError as exc:
+            warns.append(str(exc))
 
         base = bl.compute_baseline(
-            pi_years, pi_gmsat, branch, window=window, detrend=detrend,
-            at_parent_start=bi.at_parent_start, mode=baseline_mode,
+            pi_years,
+            pi_gmsat,
+            branch,
+            detrend=detrend,
         )
-        # Verdict on FULL-RUN drift (genuine drift); the window slope is reported
-        # for transparency but is dominated by short-segment variability.
         if (
-            np.isfinite(base.drift_full_degC_per_century)
-            and abs(base.drift_full_degC_per_century) > 0.5
+            np.isfinite(base.drift_degC_per_century)
+            and abs(base.drift_degC_per_century) > 0.5
         ):
             warns.append(
-                f"piControl full-run drift {base.drift_full_degC_per_century:+.2f} "
+                f"piControl drift {base.drift_degC_per_century:+.2f} "
                 "degC/century exceeds 0.5 (baseline sensitive; consider --detrend-pi)"
             )
 
-        # build axis just to report max GWL + monotonization (no payload yet)
         anom = mapping.to_anomaly(ru_years, ru_gmsat, base.reference)
         T_axis, T_pre = mapping.axis_variable(
-            ru_years, anom, method="running_mean", window=window, return_intermediate=True
+            ru_years,
+            anom,
+            method="running_mean",
+            window=window,
+            return_intermediate=True,
         )
         rep = mapping.monotonicity_report(anom, T_pre, T_axis)
 
-        diags.append(ModelDiag(
-            model=model,
-            branch_year=bi.year,
-            branch_known=known,
-            baseline_method=base.method,
-            pi_reference=base.reference,
-            pi_drift_window=base.drift_window_degC_per_century,
-            pi_drift_full=base.drift_full_degC_per_century,
-            pi_covers_branch=bool(covers),
-            max_gwl=float(np.nanmax(T_axis)),
-            monotonization_max=rep["monotonization_max_degC"],
-            parent=parent,
-            warnings=warns,
-            ru_years=ru_years,
-            ru_anom=anom,
-            ru_taxis=T_axis,
-            pi_years=pi_years,
-            pi_gmsat=pi_gmsat,
-            branch_used=float(branch),
-            base_span_lo=base.span[0],
-            base_span_hi=base.span[1],
-        ))
+        diags.append(
+            ModelDiag(
+                model=model,
+                branch_year=bi.year,
+                branch_known=known,
+                baseline_method=base.method,
+                pi_reference=base.reference,
+                pi_drift=base.drift_degC_per_century,
+                max_gwl=float(np.nanmax(T_axis)),
+                monotonization_max=rep["monotonization_max_degC"],
+                parent=parent,
+                warnings=warns,
+                ru_years=ru_years,
+                ru_anom=anom,
+                ru_taxis=T_axis,
+                pi_years=pi_years,
+                pi_gmsat=pi_gmsat,
+                branch_used=float(branch) if branch is not None else None,
+                base_span_lo=base.span[0],
+                base_span_hi=base.span[1],
+            )
+        )
 
     return diags
 
@@ -153,18 +155,27 @@ def run_diagnostics(up2p0_dir, picontrol_dir, window=31, detrend=False, baseline
 def print_table(diags):
     hdr = (
         f"{'model':16s} {'brYr':>6s} {'baseline':16s} {'pi_ref':>9s} "
-        f"{'drift_win':>9s} {'drift_all':>9s} {'cov':>3s} {'maxGWL':>7s} {'mono':>6s}"
+        f"{'drift':>9s} {'maxGWL':>7s} {'mono':>6s}"
     )
     print(hdr)
     print("-" * len(hdr))
     for d in diags:
+
         def f(x, w=9, p=3):
-            return f"{x:>{w}.{p}f}" if isinstance(x, float) and np.isfinite(x) else f"{'nan':>{w}s}"
-        by = f"{d.branch_year}" if d.branch_year is not None else "  -"
+            return (
+                f"{x:>{w}.{p}f}"
+                if isinstance(x, float) and np.isfinite(x)
+                else f"{'nan':>{w}s}"
+            )
+
+        by = (
+            f"{int(d.branch_used)}"
+            if d.branch_used is not None and np.isfinite(d.branch_used)
+            else (f"{d.branch_year}" if d.branch_year is not None else "  -")
+        )
         print(
             f"{d.model:16s} {by:>6s} {d.baseline_method:16s} {f(d.pi_reference)} "
-            f"{f(d.pi_drift_window)} {f(d.pi_drift_full)} {str(d.pi_covers_branch)[0]:>3s} "
-            f"{f(d.max_gwl,7,2)} {f(d.monotonization_max,6,3)}"
+            f"{f(d.pi_drift)} {f(d.max_gwl, 7, 2)} {f(d.monotonization_max, 6, 3)}"
         )
     print()
     for d in diags:
@@ -180,27 +191,26 @@ def main(argv=None):
         "global-mean tas NetCDF files."
     )
     parser.add_argument(
-        "--up2p0-dir", required=True,
+        "--up2p0-dir",
+        required=True,
         help="directory of ramp-up (esm-up2p0) global-mean tas .nc files",
     )
     parser.add_argument(
-        "--picontrol-dir", required=True,
+        "--picontrol-dir",
+        required=True,
         help="directory of piControl global-mean tas .nc files",
     )
     parser.add_argument(
-        "--window", type=int, default=31,
-        help="smoothing window for GWL axis; also used when --baseline-mode=window",
-    )
-    parser.add_argument(
-        "--baseline-mode",
-        choices=("full", "window"),
-        default="full",
-        help="piControl baseline: full-run mean (default) or centred window",
+        "--window",
+        type=int,
+        default=31,
+        help="smoothing window (years) for the GWL axis",
     )
     parser.add_argument("--detrend-pi", action="store_true")
     parser.add_argument("--plot", action="store_true", help="write diagnostic figures")
     parser.add_argument(
-        "--plotdir", default="./figures",
+        "--plotdir",
+        default="./figures",
         help="output dir for figures (with --plot); default ./figures",
     )
     args = parser.parse_args(argv)
@@ -210,7 +220,6 @@ def main(argv=None):
         args.picontrol_dir,
         window=args.window,
         detrend=args.detrend_pi,
-        baseline_mode=args.baseline_mode,
     )
     print_table(diags)
 

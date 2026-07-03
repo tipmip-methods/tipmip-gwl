@@ -16,9 +16,8 @@ Scope / assumptions
   equate a ramp-up state with a ramp-down state at the same GWL: same GWL on
   different paths is a different Earth-system state. That path-dependence is a
   science target, not a nuisance to interpolate away.
-* Baseline (the zero of the anomaly) follows the TIPMIP protocol: a 31-year
-  centred mean of the model's OWN piControl GMSAT, referenced to the calendar
-  window the ramp-up branched from.
+* Baseline (the zero of the anomaly) is the mean of the model's OWN piControl
+  GMSAT over the full control run.
 
 Dependencies: numpy, scipy.
 """
@@ -51,41 +50,25 @@ def load_series(path, year_col=0, value_col=1, comments="#"):
 # ---------------------------------------------------------------------------
 # Baseline / anomaly
 # ---------------------------------------------------------------------------
-def centred_mean(years, values, centre_year, window=31):
-    """31-year (default) centred mean of `values` around `centre_year`.
-
-    Used both for the piControl reference and (optionally) to smooth the
-    ramp-up. If the window runs off the end of the data it is truncated and a
-    warning-grade NaN-free mean over the available years is returned.
-    """
-    half = window // 2
-    lo, hi = centre_year - half, centre_year + half
-    sel = (years >= lo) & (years <= hi)
-    if sel.sum() == 0:
-        raise ValueError(f"No data in window {lo}-{hi} around {centre_year}.")
-    return float(np.mean(values[sel]))
-
-
-def picontrol_reference(pi_years, pi_gmsat, branch_year, window=31, detrend=False):
-    """Protocol-consistent piControl reference GMSAT for the anomaly baseline.
+def picontrol_reference(pi_years, pi_gmsat, branch_year, *, detrend=False):
+    """Full-run mean piControl GMSAT for the anomaly baseline.
 
     Parameters
     ----------
-    branch_year : the piControl calendar year the ramp-up was branched from
-                  ('year A' in the protocol).
-    detrend     : if True, linearly detrend piControl before taking the
-                  reference mean (defensible when piControl drifts; must be
-                  applied consistently across ALL models and reported).
+    branch_year : the piControl calendar year the ramp-up was branched from;
+                  used only when ``detrend=True`` to set the detrended offset.
+    detrend     : if True, linearly detrend piControl before taking the mean
+                  (must be applied consistently across ALL models and reported).
     """
-    g = pi_gmsat.copy()
+    yrs = np.asarray(pi_years, float)
+    g = np.asarray(pi_gmsat, float).copy()
     if detrend:
-        coef = np.polyfit(pi_years, pi_gmsat, 1)
-        # remove drift but keep the value AT the branch year as the offset,
-        # so the reference is the detrended level at branch_year
-        trend = np.polyval(coef, pi_years)
-        level_at_branch = np.polyval(coef, branch_year)
-        g = pi_gmsat - trend + level_at_branch
-    return centred_mean(pi_years, g, branch_year, window=window)
+        coef = np.polyfit(yrs, g, 1)
+        g = g - np.polyval(coef, yrs) + np.polyval(coef, branch_year)
+    finite = np.isfinite(yrs) & np.isfinite(g)
+    if finite.sum() == 0:
+        raise ValueError("No finite piControl GMSAT values.")
+    return float(np.mean(g[finite]))
 
 
 def to_anomaly(ru_years, ru_gmsat, pi_reference):
@@ -93,20 +76,12 @@ def to_anomaly(ru_years, ru_gmsat, pi_reference):
     return ru_gmsat - pi_reference
 
 
-def picontrol_drift(pi_years, pi_gmsat, centre_year=None, window=None):
-    """Linear drift of piControl GMSAT, in degC per century.
+def picontrol_drift(pi_years, pi_gmsat):
+    """Linear drift of the full piControl GMSAT series, in degC per century.
 
-    Residual control drift is the silent enemy of cross-model baselines: a model
-    with sizeable drift gives a reference that depends sensitively on exactly
-    which years were averaged, and that masquerades as inter-model spread. Report
-    this next to ``pi_reference_GMSAT`` for every model before trusting a baseline.
-
-    Parameters
-    ----------
-    centre_year, window : if both given, the drift is fit only over the window
-        actually used for the reference (centre +/- window//2); otherwise the
-        full piControl series is used. The windowed value is the one that matters
-        for the baseline; the full-series value is useful context.
+    Report this next to ``pi_reference_GMSAT`` for every model before trusting
+    a baseline; sizeable drift means the full-run mean may still be sensitive
+    to control length.
 
     Returns
     -------
@@ -116,13 +91,7 @@ def picontrol_drift(pi_years, pi_gmsat, centre_year=None, window=None):
     yrs = np.asarray(pi_years, float)
     vals = np.asarray(pi_gmsat, float)
 
-    if centre_year is not None and window is not None:
-        half = window // 2
-        sel = (yrs >= centre_year - half) & (yrs <= centre_year + half)
-    else:
-        sel = np.ones(yrs.shape, dtype=bool)
-
-    yrs_s, vals_s = yrs[sel], vals[sel]
+    yrs_s, vals_s = yrs, vals
     good = np.isfinite(yrs_s) & np.isfinite(vals_s)
     yrs_s, vals_s = yrs_s[good], vals_s[good]
     if yrs_s.size < 2:
@@ -326,7 +295,7 @@ def map_model(
     """
     cfg = cfg or MappingConfig()
     pi_ref = picontrol_reference(
-        pi_years, pi_gmsat, branch_year, window=cfg.window, detrend=cfg.detrend_pi
+        pi_years, pi_gmsat, branch_year, detrend=cfg.detrend_pi
     )
     anom = to_anomaly(ru_years, ru_gmsat, pi_ref)
     T_axis, T_pre = axis_variable(

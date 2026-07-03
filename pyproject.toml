@@ -22,6 +22,10 @@ plot = ["matplotlib"]
 [project.scripts]
 tipmip-gwl-diagnostics = "tipmip_gwl.diagnostics:main"
 tipmip-gwl-build = "tipmip_gwl.product:main"
+tipmip-gwl-preprocess = "tipmip_gwl.preprocess:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+tipmip_gwl = ["data/tas_chunks.tsv"]

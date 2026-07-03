@@ -20,6 +20,8 @@ Modules:
   the two GWL transforms for *continuous* data: ``remap_to_gwl`` (resample onto
   the shared 0-4 degC grid) and ``relabel_to_gwl`` (relabel each model's native
   axis with its own GWL, unbinned).
+* :mod:`tipmip_gwl.preprocess`   -- build ``gmstmon`` from raw tas chunks
+  (:func:`tipmip_gwl.preprocess.build_gmstmon`, CLI ``tipmip-gwl-preprocess``).
 * :mod:`tipmip_gwl.regrid_export` -- ``remap_export_to_gwl``: forward-bin a
   *categorical* TOAD cluster export onto the common GWL grid before MMA.
 * :mod:`tipmip_gwl.plotting`    -- diagnostic figures (needs the ``plot`` extra).
@@ -31,7 +33,11 @@ from .baseline import (
     BranchInfo,
     branch_year_from_attrs,
     compute_baseline,
+    discover_mappable_models,
+    legacy_window_reference,
     provenance_check,
+    provenance_warnings,
+    resolve_branch_year,
 )
 from .diagnostics import ModelDiag, print_table, run_diagnostics
 from .io import discover, load_gmsat_nc, read_attrs
@@ -59,6 +65,7 @@ from .product import (
     write_mapping,
     write_products,
 )
+from .preprocess import build_gmstmon, default_tas_chunks_manifest, load_tas_chunks
 from .regrid_export import remap_export_to_gwl
 
 __version__ = "0.1.0"
@@ -95,7 +102,11 @@ __all__ = [
     "BranchInfo",
     "branch_year_from_attrs",
     "compute_baseline",
+    "discover_mappable_models",
+    "legacy_window_reference",
     "provenance_check",
+    "provenance_warnings",
+    "resolve_branch_year",
     # diagnostics / plotting
     "ModelDiag",
     "run_diagnostics",
@@ -108,6 +119,10 @@ __all__ = [
     "relabel_to_gwl",
     "write_mapping",
     "write_products",
+    # preprocess
+    "build_gmstmon",
+    "default_tas_chunks_manifest",
+    "load_tas_chunks",
     # regrid_export
     "remap_export_to_gwl",
 ]

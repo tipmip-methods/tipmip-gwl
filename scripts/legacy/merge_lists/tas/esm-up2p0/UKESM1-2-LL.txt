@@ -1,0 +1,4 @@
+/work/bm1448/upload/optimesm/UKESM1-2/esm-up2p0/r1i1p1f1/Amon/tas/gn/v20241216/tas_Amon_UKESM1-2-LL_esm-up2p0_r1i1p1f1_gn_185001-194912.nc
+/work/bm1448/upload/optimesm/UKESM1-2/esm-up2p0/r1i1p1f1/Amon/tas/gn/v20241216/tas_Amon_UKESM1-2-LL_esm-up2p0_r1i1p1f1_gn_185001-213912.nc
+/work/bm1448/upload/optimesm/UKESM1-2/esm-up2p0/r1i1p1f1/Amon/tas/gn/v20241216/tas_Amon_UKESM1-2-LL_esm-up2p0_r1i1p1f1_gn_195001-204912.nc
+/work/bm1448/upload/optimesm/UKESM1-2/esm-up2p0/r1i1p1f1/Amon/tas/gn/v20241216/tas_Amon_UKESM1-2-LL_esm-up2p0_r1i1p1f1_gn_205001-213912.nc
