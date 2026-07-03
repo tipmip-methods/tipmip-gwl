@@ -41,9 +41,10 @@ to their own diagnostic variable.
   `mapping_version` — so a downstream analysis can pin one exact axis.
 
 A model is skipped (not written) only when it has no matching piControl tas on
-disk. Wrong ``experiment_id`` or missing branch metadata are recorded as warnings.
-A branch year outside the staged piControl span prevents mapping (and the 31-yr
-branch reference).
+disk, or when its branch year cannot be decoded from metadata at all. Wrong
+``experiment_id``, or a branch year outside the staged piControl span, are
+recorded as warnings: under the full-mean baseline the reference does not depend
+on the branch year, so the model is still mapped.
 
 ### Using a mapping file
 

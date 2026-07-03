@@ -18,6 +18,7 @@ dependencies = [
 
 [project.optional-dependencies]
 plot = ["matplotlib"]
+test = ["pytest"]
 
 [project.scripts]
 tipmip-gwl-diagnostics = "tipmip_gwl.diagnostics:main"

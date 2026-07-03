@@ -116,15 +116,22 @@ def run_diagnostics(up2p0_dir, picontrol_dir, window=31, detrend=False):
                 "degC/century exceeds 0.5 (baseline sensitive; consider --detrend-pi)"
             )
 
-        anom = mapping.to_anomaly(ru_years, ru_gmsat, base.reference)
-        T_axis, T_pre = mapping.axis_variable(
-            ru_years,
-            anom,
-            method="running_mean",
-            window=window,
-            return_intermediate=True,
+        cfg = mapping.MappingConfig(
+            window=window, method="running_mean", detrend_pi=detrend
         )
-        rep = mapping.monotonicity_report(anom, T_pre, T_axis)
+        mm = mapping.map_model(
+            model,
+            ru_years,
+            ru_gmsat,
+            pi_years,
+            pi_gmsat,
+            branch,
+            cfg=cfg,
+            pi_reference=base.reference,
+        )
+        anom = mm.anom
+        T_axis = mm.T_axis
+        rep = mm.diagnostics
 
         diags.append(
             ModelDiag(

@@ -128,11 +128,16 @@ def branch_year_from_attrs(attrs: dict, calendar: str | None = None) -> BranchIn
 def resolve_branch_year(bi: BranchInfo, model: str, ru_years=None, pi_years=None):
     """Return ``(branch_year, warnings)`` from decoded CMIP branch metadata.
 
-    Raises ``ValueError`` when ``branch_year_from_attrs`` did not yield a year.
-    ``ru_years`` is accepted for call-site compatibility but is not used as a
-    fallback.
+    Raises ``ValueError`` when ``branch_year_from_attrs`` did not yield a year
+    (the branch year is required as provenance metadata). ``ru_years`` is accepted
+    for call-site compatibility but is not used as a fallback.
 
-    A branch year outside the staged piControl span raises ``ValueError``.
+    A branch year outside the staged piControl span is reported as a *warning*,
+    not a fatal error: under the full-run-mean baseline the reference does not
+    depend on the branch year, so such a model is still mappable (the control may
+    simply not cover the branch, which is worth flagging but does not block the
+    mean). This differs from the former centred-window baseline, which required
+    the branch year to lie inside the control span.
     """
     del ru_years  # kept for a stable signature; no ramp-up-start fallback
     warns = []
@@ -150,9 +155,10 @@ def resolve_branch_year(bi: BranchInfo, model: str, ru_years=None, pi_years=None
     if pi_years is not None:
         pi_lo, pi_hi = float(np.min(pi_years)), float(np.max(pi_years))
         if not (pi_lo <= branch <= pi_hi):
-            raise ValueError(
-                f"{model}: branch year {branch} outside piControl span "
-                f"[{int(pi_lo)}-{int(pi_hi)}]"
+            warns.append(
+                f"branch year {branch} outside staged piControl span "
+                f"[{int(pi_lo)}-{int(pi_hi)}]; full-mean baseline uses the "
+                f"available control, but it does not cover the branch year"
             )
     return branch, warns
 
@@ -217,20 +223,21 @@ class Baseline:
 
 
 def compute_baseline(pi_years, pi_gmsat, branch_year=None, *, detrend=False) -> Baseline:
-    """piControl reference GMSAT as the mean over the full control run."""
+    """piControl reference GMSAT as the mean over the full control run.
+
+    The reference itself is delegated to :func:`tipmip_gwl.mapping.picontrol_reference`
+    so the pure-algorithm layer and this CMIP-aware layer never diverge; here we
+    add the drift diagnostic, span, and method label that go into the product.
+    """
     if detrend and branch_year is None:
         raise ValueError("branch_year is required when detrend=True")
     yrs = np.asarray(pi_years, float)
     vals = np.asarray(pi_gmsat, float)
 
-    g = vals.copy()
-    if detrend:
-        coef = np.polyfit(yrs, vals, 1)
-        g = vals - np.polyval(coef, yrs) + np.polyval(coef, branch_year)
+    ref = mapping.picontrol_reference(yrs, vals, branch_year, detrend=detrend)
 
-    finite = np.isfinite(yrs) & np.isfinite(g)
+    finite = np.isfinite(yrs) & np.isfinite(vals)
     sel = finite
-    ref = float(np.mean(g[sel]))
     drift = mapping.picontrol_drift(yrs, vals)
 
     return Baseline(

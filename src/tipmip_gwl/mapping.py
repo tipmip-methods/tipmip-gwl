@@ -271,6 +271,7 @@ class ModelMapping:
     t_of_T: np.ndarray  # year at each GWL
     anom: np.ndarray  # raw anomaly(time)
     T_axis: np.ndarray  # monotone axis(time)
+    T_pre: np.ndarray  # smoothed anomaly before the monotonicity step
     years: np.ndarray
     diagnostics: dict
     resampled: dict = field(default_factory=dict)  # varname -> array on T_grid
@@ -285,17 +286,31 @@ def map_model(
     branch_year,
     extra_vars=None,
     cfg: MappingConfig | None = None,
+    *,
+    pi_reference: float | None = None,
 ):
     """Full per-model pipeline: anomaly -> monotone axis -> t(T) -> resample.
+
+    This is the single source of truth for the mapping algorithm; the CMIP-aware
+    drivers (``product.build_mapping_dataset``, ``diagnostics.run_diagnostics``)
+    call it rather than re-implementing the steps.
 
     extra_vars : dict {varname: (years, values)} to resample onto the T grid
                  (e.g. atmospheric CO2, sea-ice area, AMOC strength...).
                  If a variable shares ru_years you may pass values only by
                  wrapping as (ru_years, values).
+    pi_reference : optional precomputed baseline (anomaly zero point). When given,
+                 it is used directly and ``pi_years``/``pi_gmsat``/``branch_year``
+                 are not consulted for the reference; pass this from
+                 :func:`tipmip_gwl.baseline.compute_baseline` so the CMIP-aware
+                 baseline (with drift/method/n_years) and the axis share one value.
+                 When omitted, the full-run piControl mean is computed here.
     """
     cfg = cfg or MappingConfig()
-    pi_ref = picontrol_reference(
-        pi_years, pi_gmsat, branch_year, detrend=cfg.detrend_pi
+    pi_ref = (
+        float(pi_reference)
+        if pi_reference is not None
+        else picontrol_reference(pi_years, pi_gmsat, branch_year, detrend=cfg.detrend_pi)
     )
     anom = to_anomaly(ru_years, ru_gmsat, pi_ref)
     T_axis, T_pre = axis_variable(
@@ -312,6 +327,7 @@ def map_model(
         t_of_T=t_of_T,
         anom=anom,
         T_axis=T_axis,
+        T_pre=T_pre,
         years=ru_years,
         diagnostics=diag,
     )
@@ -360,7 +376,7 @@ def sensitivity_matrix(
     Use this to check whether a headline multi-model result is stable, or
     whether 'spread at 1.5 degC' is partly a methods artifact.
     """
-    T_grid = np.arange(0.0, 4.0001, 0.1) if T_grid is None else T_grid
+    T_grid = gwl_grid() if T_grid is None else T_grid
     results = {}
     for w in windows:
         for meth in methods:

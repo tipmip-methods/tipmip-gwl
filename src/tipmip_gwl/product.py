@@ -71,9 +71,10 @@ def build_mapping_dataset(
     """Compute the full mapping for one model and return it as an xarray Dataset.
 
     Raises :class:`NotMappable` when no piControl tas is available for the model,
-    or when branch metadata cannot be resolved (missing year, or branch outside
-    the staged piControl span). Other metadata issues (wrong ``experiment_id``,
-    etc.) are recorded as warnings on the output dataset.
+    or when the branch year cannot be decoded from metadata at all. Other issues
+    (wrong ``experiment_id``, or a branch year outside the staged piControl span)
+    are recorded as warnings on the output dataset: under the full-mean baseline
+    the model is still mappable.
     """
     t_grid = (
         mapping.MappingConfig().T_grid if t_grid is None else np.asarray(t_grid, float)
@@ -100,12 +101,24 @@ def build_mapping_dataset(
     base = bl.compute_baseline(
         pi_years, pi_gmsat, branch, detrend=detrend,
     )
-    anom = mapping.to_anomaly(ru_years, ru_gmsat, base.reference)
-    T_axis, T_pre = mapping.axis_variable(
-        ru_years, anom, method="running_mean", window=window, return_intermediate=True
+    cfg = mapping.MappingConfig(
+        window=window, method="running_mean", detrend_pi=detrend, T_grid=t_grid
     )
-    year_of_gwl = mapping.invert_to_grid(ru_years, T_axis, t_grid)
-    rep = mapping.monotonicity_report(anom, T_pre, T_axis)
+    mm = mapping.map_model(
+        model,
+        ru_years,
+        ru_gmsat,
+        pi_years,
+        pi_gmsat,
+        branch,
+        cfg=cfg,
+        pi_reference=base.reference,
+    )
+    anom = mm.anom
+    T_axis = mm.T_axis
+    T_pre = mm.T_pre
+    year_of_gwl = mm.t_of_T
+    rep = mm.diagnostics
 
     now = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     version = _package_version()
