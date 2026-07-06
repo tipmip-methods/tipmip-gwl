@@ -125,28 +125,52 @@ def branch_year_from_attrs(attrs: dict, calendar: str | None = None) -> BranchIn
     return info
 
 
+def _has_declared_parent(bi: BranchInfo) -> bool:
+    """Whether the file declares a parent run at all (independent of the year)."""
+    return bool(bi.parent_source_id or bi.parent_experiment_id)
+
+
 def resolve_branch_year(bi: BranchInfo, model: str, ru_years=None, pi_years=None):
     """Return ``(branch_year, warnings)`` from decoded CMIP branch metadata.
 
-    Raises ``ValueError`` when ``branch_year_from_attrs`` did not yield a year
-    (the branch year is required as provenance metadata). ``ru_years`` is accepted
-    for call-site compatibility but is not used as a fallback.
+    ``ru_years`` is accepted for call-site compatibility but is not used as a
+    fallback.
 
-    A branch year outside the staged piControl span is reported as a *warning*,
-    not a fatal error: under the full-run-mean baseline the reference does not
-    depend on the branch year, so such a model is still mappable (the control may
-    simply not cover the branch, which is worth flagging but does not block the
-    mean). This differs from the former centred-window baseline, which required
-    the branch year to lie inside the control span.
+    Under the full-run-mean baseline, the branch year itself is not needed to
+    compute the reference. This never raises: a missing or undecodable branch
+    year is reported as a *warning*, distinguishing (for traceability) whether
+    no parent was declared at all (``branch_method == 'no parent'`` and no
+    ``parent_source_id``/``parent_experiment_id``) versus a parent being
+    declared but the year specifically not decodable (e.g. a malformed
+    ``branch_time_in_parent``/``parent_time_units``). Either way the model
+    remains mappable; only the detrending anchor, the legacy window sensitivity
+    check, and the branch-year cross-check are unavailable for it. The sole
+    hard requirement for mapping a model is having a piControl tas file to pair
+    it with at all (enforced by the caller, not here).
+
+    A branch year outside the staged piControl span is also a warning, not a
+    fatal error, for the same reason: the full-mean reference does not depend
+    on the branch year lying inside the control span.
     """
     del ru_years  # kept for a stable signature; no ramp-up-start fallback
     warns = []
     known = KNOWN_BRANCH_YEARS.get(model)
+
     if bi.year is None:
-        raise ValueError(
-            f"{model}: branch year could not be decoded from metadata "
-            f"({bi.note or 'missing branch_time_in_parent/parent_time_units'})"
-        )
+        if not _has_declared_parent(bi):
+            warns.append(
+                "no parent run declared (branch_method='no parent' or missing "
+                "parent_source_id/parent_experiment_id); baseline computed from "
+                "full piControl only, paired by filename"
+            )
+        else:
+            warns.append(
+                f"branch year could not be decoded "
+                f"({bi.note or 'missing branch_time_in_parent/parent_time_units'}); "
+                f"baseline computed from full piControl only"
+            )
+        return None, warns
+
     branch = bi.year
 
     if known is not None and known != bi.year:
@@ -240,9 +264,17 @@ def compute_baseline(pi_years, pi_gmsat, branch_year=None, *, detrend=False) -> 
     sel = finite
     drift = mapping.picontrol_drift(yrs, vals)
 
+    # Distinct label when there is no branch year at all (parent declared, but
+    # the year specifically could not be decoded): the reference is identical,
+    # but this flags that the branch-year cross-check, detrending anchor, and
+    # legacy window sensitivity check are unavailable for this model.
+    method = "full_piControl_mean" if branch_year is not None else (
+        "full_piControl_mean_no_branch_year"
+    )
+
     return Baseline(
         reference=ref,
-        method="full_piControl_mean",
+        method=method,
         n_years=int(sel.sum()),
         span=(float(yrs[sel].min()), float(yrs[sel].max()))
         if sel.any()

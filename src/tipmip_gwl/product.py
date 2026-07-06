@@ -70,11 +70,13 @@ def build_mapping_dataset(
 ) -> xr.Dataset:
     """Compute the full mapping for one model and return it as an xarray Dataset.
 
-    Raises :class:`NotMappable` when no piControl tas is available for the model,
-    or when the branch year cannot be decoded from metadata at all. Other issues
-    (wrong ``experiment_id``, or a branch year outside the staged piControl span)
-    are recorded as warnings on the output dataset: under the full-mean baseline
-    the model is still mappable.
+    Raises :class:`NotMappable` only when no piControl tas is available for the
+    model at all -- that is the sole hard requirement, since the full-mean
+    baseline does not depend on the branch year. Everything else -- wrong
+    ``experiment_id``, no parent declared, a parent declared but its branch year
+    specifically undecodable, or a branch year outside the staged piControl
+    span -- is recorded as a warning on the output dataset instead of blocking
+    the model.
     """
     t_grid = (
         mapping.MappingConfig().T_grid if t_grid is None else np.asarray(t_grid, float)
@@ -195,10 +197,13 @@ def build_mapping_dataset(
             ),
             "branch_year": (
                 (),
-                np.int32(branch),
+                np.float64(branch) if branch is not None else np.float64("nan"),
                 {
                     "long_name": "piControl calendar year the ramp-up branched from",
                     "units": "year",
+                    "comment": "NaN when the branch year could not be decoded "
+                    "(baseline_method ends in '_no_branch_year'); the full-mean "
+                    "baseline does not require it.",
                 },
             ),
             "max_gwl_reached": (

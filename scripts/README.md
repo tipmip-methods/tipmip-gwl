@@ -42,6 +42,8 @@ tipmip-gwl-build --up2p0-dir ... --picontrol-dir ... --outdir mapping/
 |--------|--------------|---------|
 | `run_preprocess_levante.slurm` | Levante | Batch `tipmip-gwl-preprocess` for both experiments |
 | `pull_gmstmon_pik.sh` | PIK | Rsync `gmstmon/` from Levante to PIK scratch |
+| `pull_gmstmon_local.sh` | Laptop | Rsync `gmstmon/` from Levante to `~/Desktop/tipmip/tas/` |
+| `prepare_rampdown_merge.py` | Local | Build merge lists for `esm-up2p0-gwl2p0-50y-dn2p0` (+ NorESM swl id) |
 | `run_pull_gmstmon.slurm` | PIK | Slurm wrapper for the pull script |
 | `legacy/` | Levante | Superseded CDO merge pipeline (`merge_var.sh`, …) |
 

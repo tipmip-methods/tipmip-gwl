@@ -90,13 +90,28 @@ def test_missing_picontrol_raises_not_mappable(tmp_path):
         build_mapping_dataset("SOME-MODEL", ru_path, pi_path=None)
 
 
-def test_undecodable_branch_year_raises_not_mappable(tmp_path, pi_control_file):
-    # No branch_time_in_parent/parent_time_units at all -> branch year cannot be
-    # decoded -> still a hard failure (this is the one case that must raise).
+def test_no_parent_declared_still_maps(tmp_path, pi_control_file):
+    # Regression test: UKESM1-2-LL-like case -- no branch_time_in_parent /
+    # parent_time_units at all, no parent linkage declared. Per explicit
+    # confirmation this data is usable; the only hard gate is a missing
+    # piControl file (covered by test_missing_picontrol_raises_not_mappable),
+    # so this must map, not raise.
     ru_path = tmp_path / "ru.nc"
-    _write_monthly_tas(ru_path, start_year=1900, n_years=10)
-    with pytest.raises(NotMappable, match="branch year could not be decoded"):
-        build_mapping_dataset("SOME-MODEL", ru_path, pi_control_file)
+    _write_monthly_tas(
+        ru_path,
+        start_year=1900,
+        n_years=10,
+        attrs={
+            "source_id": "NO-PARENT-MODEL",
+            "experiment_id": "Up-8GtC",
+            "branch_method": "no parent",
+        },
+    )
+    out = build_mapping_dataset("NO-PARENT-MODEL", ru_path, pi_control_file)
+    assert out.attrs["baseline_method"] == "full_piControl_mean_no_branch_year"
+    assert np.isnan(out["branch_year"].values)
+    assert "no parent run declared" in out.attrs["mapping_warnings"]
+    assert np.isfinite(out["baseline_gmsat"].values)
 
 
 def test_clean_model_maps_without_warnings(tmp_path, pi_control_file):

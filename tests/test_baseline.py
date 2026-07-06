@@ -41,10 +41,28 @@ def test_branch_year_from_attrs_missing_metadata_leaves_year_none():
     assert "missing" in info.note
 
 
-def test_resolve_branch_year_raises_when_undecoded():
+def test_resolve_branch_year_never_raises_no_parent_declared():
+    # Regression test: UKESM1-2-LL-like case (no parent metadata at all, e.g. a
+    # run from a different project/experiment). Per explicit confirmation this
+    # data is usable, so there are no hard gates beyond "no piControl file at
+    # all" (enforced elsewhere) -- this must warn, not raise.
     bi = BranchInfo(year=None, note="missing branch_time_in_parent/parent_time_units")
-    with pytest.raises(ValueError):
-        resolve_branch_year(bi, "SOME-MODEL")
+    branch, warns = resolve_branch_year(bi, "SOME-MODEL")
+    assert branch is None
+    assert any("no parent run declared" in w for w in warns)
+
+
+def test_resolve_branch_year_warns_when_parent_declared_but_year_undecodable():
+    bi = BranchInfo(
+        year=None,
+        parent_source_id="SOME-MODEL",
+        parent_experiment_id="esm-piControl",
+        note="cftime decode failed: bad units",
+    )
+    branch, warns = resolve_branch_year(bi, "SOME-MODEL")
+    assert branch is None
+    assert any("branch year could not be decoded" in w for w in warns)
+    assert not any("no parent run declared" in w for w in warns)
 
 
 def test_resolve_branch_year_out_of_span_warns_not_raises():
@@ -94,13 +112,20 @@ def test_compute_baseline_matches_mapping_picontrol_reference():
     years = np.arange(0, 500)
     rng = np.random.default_rng(0)
     vals = 286.5 + 0.05 * rng.standard_normal(years.size)
-    base = compute_baseline(years, vals)
+    base = compute_baseline(years, vals, branch_year=2050)
     assert base.method == "full_piControl_mean"
     assert base.reference == pytest.approx(
         picontrol_reference(years, vals, branch_year=None), abs=1e-9
     )
     assert base.n_years == years.size
     assert base.detrended is False
+
+
+def test_compute_baseline_flags_missing_branch_year():
+    years = np.arange(0, 500)
+    vals = np.full(years.size, 286.5)
+    base = compute_baseline(years, vals, branch_year=None)
+    assert base.method == "full_piControl_mean_no_branch_year"
 
 
 def test_compute_baseline_detrend_requires_branch_year():

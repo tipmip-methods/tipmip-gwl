@@ -41,10 +41,13 @@ to their own diagnostic variable.
   `mapping_version` — so a downstream analysis can pin one exact axis.
 
 A model is skipped (not written) only when it has no matching piControl tas on
-disk, or when its branch year cannot be decoded from metadata at all. Wrong
-``experiment_id``, or a branch year outside the staged piControl span, are
-recorded as warnings: under the full-mean baseline the reference does not depend
-on the branch year, so the model is still mapped.
+disk — that is the sole hard requirement, since the full-mean baseline does not
+depend on the branch year. Everything else — wrong ``experiment_id``, no parent
+declared, a parent declared but its branch year specifically undecodable, or a
+branch year outside the staged piControl span — is recorded as a warning
+instead: the model is still mapped, with `baseline_method` set to
+`full_piControl_mean_no_branch_year` and `branch_year` left `NaN` when no year
+could be decoded at all.
 
 ### Using a mapping file
 
@@ -174,8 +177,24 @@ src/tipmip_gwl/          Python package (mapping, baseline, preprocess, product,
   data/tas_chunks.tsv      Hand-maintained Levante paths for tas time chunks
 docs/gmstmon_pipeline.md   GMSAT preprocessing guide
 scripts/                   HPC helpers (Levante preprocess, PIK pull); see scripts/README.md
-examples/                  Analysis scripts (mean_tas_piControl, baseline_sensitivity, …)
+examples/                  Generic package-usage demos (not paper-specific)
+paper/                     Every figure/table for the paper, one script each,
+                           `python paper/build_all.py` builds all of them
+mapping/                   The data product (gwlmap_*.nc); *.nc is gitignored
 ```
+
+### Reproducing the paper's figures and tables
+
+```bash
+python paper/build_all.py \
+    --up2p0-dir <dir> --picontrol-dir <dir> --mlotst-dir <dir>
+```
+
+Rebuilds `mapping/`, then every figure into `paper/figures/` and every table
+into `paper/tables/`. Each step is also a standalone script with the same
+`--up2p0-dir`/`--picontrol-dir` convention (see each script's docstring):
+`figures_1_2.py`, `baseline_sensitivity.py`, `window_sensitivity.py`,
+`mean_tas_piControl.py`, `diagnostic_remap_demo.py`, `table1.py`.
 
 ## File overview
 
@@ -201,9 +220,16 @@ src/tipmip_gwl/
 └── plotting.py      Diagnostic figures (ramp-up anomaly overlay; per-model
                      piControl baseline panels). Needs the `plot` extra.
 
-examples/
-├── mean_tas_piControl.py       piControl baseline comparison figure
+examples/                 (generic, not paper-specific)
 ├── synthetic_demo.py           End-to-end run on synthetic data (no NetCDF needed).
-├── remap_diagnostic.py         Apply a mapping file to a diagnostic variable.
-├── baseline_sensitivity.py     Full piControl mean vs legacy 31-yr window baseline.
+└── remap_diagnostic.py         Apply a mapping file to a diagnostic variable.
+
+paper/                     (one script per figure/table; build_all.py runs all)
+├── build_all.py                Orchestrator: rebuilds mapping/, then every figure/table.
+├── figures_1_2.py               Figures 1-2: ramp-up GWL overlay; piControl + baseline.
+├── mean_tas_piControl.py        Figure 3: full-mean vs 31-yr-window piControl reference.
+├── diagnostic_remap_demo.py     Figure 4: mixed-layer depth remapped onto the GWL axis.
+├── baseline_sensitivity.py      Table: full vs legacy-window baseline (backs Figure 3).
+├── window_sensitivity.py        Table: 21/31/41-yr smoothing-window robustness check.
+└── table1.py                    Table 1 (SI): per-model baseline + robustness diagnostics.
 ```
