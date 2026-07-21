@@ -1,2 +1,0 @@
-/work/bm1448/upload/abemnb/CMIP6Plus/TIPMIP/MIROC/MIROC-ES2L/esm-up2p0/r1i1p1f1/APmon/tas/gn/v20250808/tas_APmon_MIROC-ES2L_esm-up2p0_r1i1p1f1_gn_200101-220012.nc
-/work/bm1448/upload/abemnb/CMIP6Plus/TIPMIP/MIROC/MIROC-ES2L/esm-up2p0/r1i1p1f1/APmon/tas/gn/v20250808/tas_APmon_MIROC-ES2L_esm-up2p0_r1i1p1f1_gn_220101-225012.nc

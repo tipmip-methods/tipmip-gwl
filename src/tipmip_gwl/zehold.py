@@ -19,7 +19,7 @@ not a third copy of the same schema:
   -- structurally, not just because it hasn't been built yet. Only the
   forward transform (``gwl_axis(year)``, possibly non-monotonic) is
   meaningful, which is exactly what :func:`tipmip_gwl.product.relabel_to_gwl`
-  (not ``remap_to_gwl``) already expects -- it never required monotonicity.
+  (not ``resample_to_gwl``) already expects -- it never required monotonicity.
 * Smoothing is lighter by default (15yr, not 31yr): the ramp-up/down windows
   match the protocol's own 31-yr diagnostic window for a 100-600 year leg; on
   a 50-year hold, a 31-yr centred window spends most of the record in its own
@@ -31,7 +31,7 @@ not a third copy of the same schema:
   one leg further removed. That means ``branch_time_in_parent`` decodes
   directly against the ramp-up's own calendar for most models here, and is
   recorded as informational provenance (never used for the baseline, which
-  remains the full piControl mean shared by all three legs).
+  inherits the ramp-up mapping product's baseline when available).
 
 Dependencies: numpy, xarray, and the sibling :mod:`tipmip_gwl` modules.
 """
@@ -49,7 +49,7 @@ import xarray as xr
 from . import baseline as bl
 from . import mapping
 from .io import discover, load_gmsat_nc, read_attrs
-from .product import NotMappable, _git_revision, _package_version, load_rampup_baseline
+from .product import NotMappable, _git_revision, _package_version, resolve_secondary_leg_baseline
 
 # 50-year holds spend most of a 31-yr centred window in the edge-shrunk regime
 # (see mapping.running_mean); this is closer to the "mostly full window"
@@ -134,30 +134,9 @@ def build_ze_mapping_dataset(
     pi_years, pi_gmsat = load_gmsat_nc(pi_path)
     pi_attrs = read_attrs(pi_path)
 
-    rampup = load_rampup_baseline(mapping_dir, model) if mapping_dir else None
-    if rampup is not None:
-        ref, method = rampup
-        drift = mapping.picontrol_drift(pi_years, pi_gmsat)
-        finite = np.isfinite(pi_years) & np.isfinite(pi_gmsat)
-        base = bl.Baseline(
-            reference=ref,
-            method=method,
-            n_years=int(finite.sum()),
-            span=(
-                (float(pi_years[finite].min()), float(pi_years[finite].max()))
-                if finite.any()
-                else (np.nan, np.nan)
-            ),
-            drift_degC_per_century=drift["drift_degC_per_century"],
-            detrended=False,
-        )
-    else:
-        if mapping_dir is not None:
-            warns.append(
-                "no ramp-up mapping found in mapping_dir; baseline computed "
-                "from piControl (full mean)"
-            )
-        base = bl.compute_baseline(pi_years, pi_gmsat, branch_year=None)
+    base = resolve_secondary_leg_baseline(
+        mapping_dir, model, pi_years, pi_gmsat, warns=warns
+    )
     anom = mapping.to_anomaly(ze_years, ze_gmsat, base.reference)
     smoothed = mapping.running_mean(ze_years, anom, window)
 
@@ -197,7 +176,7 @@ def build_ze_mapping_dataset(
                     "leg's trajectory can wander, and that wander is the signal "
                     "(zero-emissions-commitment behaviour), not noise to correct. "
                     "No inverse (year_of_gwl) exists for this leg; use "
-                    "relabel_to_gwl (not remap_to_gwl) to plot a diagnostic "
+                    "relabel_to_gwl (not resample_to_gwl) to plot a diagnostic "
                     "against this axis.",
                 },
             ),
@@ -308,7 +287,7 @@ def build_ze_mapping_dataset(
         "diagnostic variable against it; no remapped variables are shipped.",
         "leg": "ze-hold",
         "hysteresis_note": "This leg's gwl_axis is not monotone by design and has "
-        "no inverse -- do not use remap_to_gwl (a common-grid resample requires "
+        "no inverse -- do not use resample_to_gwl (a common-grid resample requires "
         "invertibility) or equate its GWL values with the ramp-up/ramp-down legs' "
         "at the 'same' GWL; path-dependence across all three legs is the point.",
         "method": f"gwl_axis(t) = {window}-yr centred running mean of GMSAT anomaly "

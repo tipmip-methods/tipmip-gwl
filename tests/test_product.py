@@ -10,7 +10,14 @@ import numpy as np
 import pytest
 import xarray as xr
 
-from tipmip_gwl.product import NotMappable, build_mapping_dataset
+from tipmip_gwl.product import (
+    NotMappable,
+    build_mapping_dataset,
+    bundled_mapping_path,
+    bundled_mappings_dir,
+    list_models,
+    load_mapping,
+)
 
 CALENDAR = "noleap"
 
@@ -135,3 +142,46 @@ def test_clean_model_maps_without_warnings(tmp_path, pi_control_file):
     assert "mapping_warnings" not in out.attrs
     assert int(out["branch_year"].values) == branch_year
     assert out.attrs["baseline_method"] == "branch_window_31yr"
+
+
+def test_bundled_mappings_dir_exists():
+    root = bundled_mappings_dir()
+    assert root.is_dir()
+    assert any(root.glob("gwlmap_*.nc"))
+
+
+def test_list_models_matches_rampup_v1_files():
+    root = bundled_mappings_dir()
+    n_files = len(list(root.glob("gwlmap_*_esm-up2p0_v1.nc")))
+    models = list_models()
+    assert len(models) == n_files
+    assert n_files >= 8
+    assert "GFDL-ESM2M" in models
+
+
+def test_bundled_mapping_path_resolves():
+    path = bundled_mapping_path("GFDL-ESM2M")
+    assert path.name == "gwlmap_GFDL-ESM2M_esm-up2p0_v1.nc"
+    assert path.is_file()
+
+
+def test_bundled_mapping_path_unknown_model():
+    with pytest.raises(FileNotFoundError, match="no bundled mapping"):
+        bundled_mapping_path("Not-A-Model")
+
+
+def test_load_mapping_returns_in_memory_dataset():
+    ds = load_mapping("GFDL-ESM2M")
+    assert isinstance(ds, xr.Dataset)
+    assert "year_of_gwl" in ds
+    assert "gwl_axis" in ds
+    assert ds.attrs.get("mapping_version") == "v1"
+    assert str(ds.attrs.get("leg", "ramp-up")) == "ramp-up"
+
+
+def test_load_mapping_custom_path(tmp_path):
+    src = bundled_mapping_path("GFDL-ESM2M")
+    custom = tmp_path / src.name
+    custom.write_bytes(src.read_bytes())
+    ds = load_mapping("GFDL-ESM2M", path=custom)
+    assert ds.attrs["source_id"] == load_mapping("GFDL-ESM2M").attrs["source_id"]

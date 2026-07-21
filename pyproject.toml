@@ -31,4 +31,4 @@ tipmip-gwl-preprocess = "tipmip_gwl.preprocess:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-tipmip_gwl = ["data/tas_chunks.tsv"]
+tipmip_gwl = ["data/tas_chunks.tsv", "data/mappings/*.nc"]

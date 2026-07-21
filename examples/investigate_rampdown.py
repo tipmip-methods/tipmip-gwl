@@ -1,10 +1,13 @@
 """Investigate TIPMIP ramp-down GMSAT curves (esm-up2p0-gwl2p0-50y-dn2p0).
 
-Uses the same piControl baseline as tipmip-gwl (31-yr branch window, inherited
-from the ramp-up mapping product when available). Ramp-down legs
-cool monotonically in calendar time, but they must *not* be remapped with the
-ramp-up ``year_of_gwl`` grid — same GWL on the way up and down is a different
-Earth-system state (see ``tipmip_gwl.mapping`` scope notes).
+Quick inspection script (not the published mapping pipeline). Computes anomalies
+with ``compute_baseline`` using the ramp-down leg's branch metadata against
+piControl — unlike :mod:`tipmip_gwl.rampdown`, which inherits the ramp-up
+mapping baseline when a product is available in ``mapping_dir``.
+
+Ramp-down legs cool monotonically in calendar time, but they must *not* be
+remapped with the ramp-up ``year_of_gwl`` grid — same GWL on the way up and
+down is a different Earth-system state (see ``tipmip_gwl.mapping`` scope notes).
 
 Example::
 

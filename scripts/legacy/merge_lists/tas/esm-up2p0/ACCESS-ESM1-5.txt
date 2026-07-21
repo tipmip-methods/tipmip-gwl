@@ -1,2 +1,0 @@
-/work/bm1448/upload/tipesm/ACCESS-ESM1-5/esm-up2p0/r1i1p1f1/Amon/tas/v20250428/tas_Amon_ACCESS-ESM1-5_esm-up2p0_r1i1p1f1_gn_010101-020012.nc
-/work/bm1448/upload/tipesm/ACCESS-ESM1-5/esm-up2p0/r1i1p1f1/Amon/tas/v20250428/tas_Amon_ACCESS-ESM1-5_esm-up2p0_r1i1p1f1_gn_020101-030012.nc

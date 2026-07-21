@@ -1,240 +1,74 @@
 # tipmip-gwl
 
-Re-index TIPMIP ramp-up output from a **time** axis onto a common **global warming level (GWL)** axis.
+Re-index TIPMIP ramp-up output from **calendar time** onto a **global warming level (GWL)** axis so models can be compared at the same warming rather than the same year.
 
-The mapping pipeline has three steps, applied identically to every model:
-
-1. **Anomaly computation** — weighted annual-mean GMSAT, 31-yr branch-window piControl baseline (full mean when branch metadata is missing or out of span), warming anomaly
-2. **Smoothing and monotonicity** — 31-year centred running mean, then isotonic (PAVA) regression
-3. **Inversion and resampling** — relabel at native resolution or resample onto a common GWL grid
-
-Archive preprocessing (`tipmip-gwl-preprocess`) builds monthly `gmstmon` from raw `tas`; the days-in-month-weighted annual mean is applied on read (Step 1).
+Install the package, load a bundled mapping, and apply it to your own annual diagnostic:
 
 ```bash
-pip install -e ".[plot]"
-
-# build gmstmon (default manifest bundled in package)
-tipmip-gwl-preprocess --exp esm-piControl --outdir gmstmon/
-
-# sanity table + diagnostic figures
-tipmip-gwl-diagnostics --up2p0-dir <dir> --picontrol-dir <dir> --plot --plotdir figures/
-
-# the data product: one mapping .nc per mappable model
-tipmip-gwl-build --up2p0-dir <dir> --picontrol-dir <dir> --outdir mapping/
-
-# baseline sensitivity: full piControl mean vs 31-yr branch window
-python paper/baseline_sensitivity.py --up2p0-dir <dir> --picontrol-dir <dir>
-```
-
-The baseline is the **31-yr mean centred on the branch year** (trailing first 31 years when the branch is at piControl start). Models with missing or out-of-span branch years fall back to the **full piControl mean** (NorESM2-LM).
-For the eight staged TIPMIP models, piControl drift is well below 0.5 °C/cy and
-|full mean − branch window| is at most ~0.09 K — see `paper/baseline_sensitivity.py`.
-
-## Data product
-
-The deliverable is one NetCDF file per model (`gwlmap_<model>_esm-up2p0_<version>.nc`)
-holding the coordinate transform, not remapped variables — users apply the axis
-to their own diagnostic variable.
-
-- `year_of_gwl(gwl)` — model year at each GWL on the common 0–4 °C grid in 0.02 °C steps (NaN beyond range).
-- `gwl_axis(year)` — forward GWL(t): the monotone axis that was inverted.
-- `gmsat_anomaly(year)`, `gmsat_anomaly_smoothed(year)` — the (un)smoothed anomaly.
-- Scalar diagnostics: `baseline_gmsat`, `branch_year`, `picontrol_drift`,
-  `monotonization_max`, `max_gwl_reached`, `baseline_method`.
-- Provenance attrs: input `tracking_id`s, parent run, code version, git revision,
-  `mapping_version` — so a downstream analysis can pin one exact axis.
-
-A model is skipped (not written) only when it has no matching piControl tas on
-disk — that is the sole hard requirement. Everything else — wrong ``experiment_id``,
-no parent declared, a parent declared but its branch year specifically undecodable,
-or a branch year outside the staged piControl span — is recorded as a warning
-instead: the model is still mapped, with ``baseline_method`` set to
-``full_piControl_mean_no_branch_year`` (missing branch year) or
-``full_piControl_mean`` (branch year out of span) and ``branch_year`` left ``NaN``
-when no year could be decoded at all.
-
-### Using a mapping file
-
-There are two GWL transforms, depending on whether you want a **shared** axis or
-each model's **own** axis:
-
-1. **`remap_to_gwl`** — resample a diagnostic onto the common 0–4 °C grid
-   (0.02 °C steps, shared across models). Uses the inverse `year_of_gwl(gwl)`.
-   Use this to **stack/compare models** at the same warming level.
-2. **`relabel_to_gwl`** — relabel a model's *native* time axis with continuous
-   GWL (its own, uneven, unbinned). Uses the forward `gwl_axis(year)`. Use this
-   to **plot a single model** against GWL without losing temporal resolution.
-
-`year_of_gwl(gwl)` is the operational variable for #1 — the model year at each
-GWL. `remap_to_gwl` aligns by year *value* and returns NaN beyond the model's
-range (never extrapolates):
-
-```python
-import xarray as xr
-from tipmip_gwl import remap_to_gwl
-
-mp = xr.open_dataset("mapping/gwlmap_GFDL-ESM2M_esm-up2p0_v1.nc")
-diag = xr.open_dataset("mlotst_GFDL-ESM2M_esm-up2p0.nc")["mlotst"]  # on a 'year' axis
-on_gwl = remap_to_gwl(mp, diag)            # now indexed by 'gwl', ready to stack
-```
-
-A fuller version — selecting levels and stacking models for ensemble statistics:
-
-```python
-import xarray as xr
-from tipmip_gwl import remap_to_gwl
-
-# one model: select a level or a window once it is on the GWL axis
-mp = xr.open_dataset("mapping/gwlmap_GFDL-ESM2M_esm-up2p0_v1.nc")
-diag = xr.open_dataset("mlotst_GFDL-ESM2M_esm-up2p0.nc")["mlotst"]
-on_gwl = remap_to_gwl(mp, diag)
-print(on_gwl.sel(gwl=2.0))                 # diagnostic value at +2.0 °C
-print(on_gwl.sel(gwl=slice(1.0, 2.0)))     # the 1–2 °C window
-
-# if the diagnostic's annual axis is not called 'year', say so:
-# on_gwl = remap_to_gwl(mp, diag, year_dim="time")
-
-# many models: stack on the shared axis for ensemble statistics
-models = {
-    "GFDL-ESM2M": "mapping/gwlmap_GFDL-ESM2M_esm-up2p0_v1.nc",
-    "IPSL-CM6-ESMCO2": "mapping/gwlmap_IPSL-CM6-ESMCO2_esm-up2p0_v1.nc",
-}
-remapped = []
-for name, path in models.items():
-    mp = xr.open_dataset(path)
-    diag = xr.open_dataset(f"mlotst_{name}_esm-up2p0.nc")["mlotst"]
-    remapped.append(remap_to_gwl(mp, diag).expand_dims(model=[name]))
-
-ensemble = xr.concat(remapped, dim="model")   # (model, gwl); NaN where unreached
-print(ensemble.mean("model"))                  # ensemble mean vs GWL
-print(ensemble.std("model"))                   # inter-model spread vs GWL
-```
-
-Note: `remap_to_gwl` interpolates linearly in time between annual values, so an
-abrupt mid-year change is smeared across the straddling GWL bin; supply a monthly
-diagnostic if sub-annual timing matters. See `examples/remap_diagnostic.py`.
-
-#### Relabel a single model's axis (transform #2)
-
-`relabel_to_gwl` keeps every timestep and just swaps the coordinate values to the
-warming level reached that year — no binning, native resolution. Good for
-plotting one model against GWL:
-
-```python
-import xarray as xr
-from tipmip_gwl import relabel_to_gwl
-
-mp = xr.open_dataset("mapping/gwlmap_GFDL-ESM2M_esm-up2p0_v1.nc")
-diag = xr.open_dataset("mlotst_GFDL-ESM2M_esm-up2p0.nc")["mlotst"]  # 'year' axis
-
-on_gwl = relabel_to_gwl(mp, diag)              # 'year' dim -> 'gwl' (native length)
-on_gwl.mean("hp_pixel").plot()                  # x-axis is now GWL (°C)
-
-# zero-based axis (e.g. a TOAD export starting at time=0): shift to calendar years
-# and keep the original dim name so downstream tools still find it:
-# on_gwl = relabel_to_gwl(mp, da, year_dim="time",
-#                         year_offset=int(mp.attrs["rampup_start_year"]),
-#                         new_dim=None)
-```
-
-### Remapping categorical cluster exports (for TOAD MMA)
-
-`remap_to_gwl` interpolates and is only valid for *continuous* fields. Cluster
-labels are categorical (`-1` = noise, `0,1,2,…` = events), so use
-`remap_export_to_gwl`, which **forward-bins** instead: each export year is placed
-in the GWL bin it reaches via `gwl_axis(year)`, and labels in a bin are reduced
-per pixel (non-noise wins; ties → most frequent, then lowest id). Run shift
-detection and clustering on each model's native annual axis, then remap only the
-labels just before aggregation:
-
-```text
-shift detection → clustering → remap_export_to_gwl → MMA
+pip install -e .
 ```
 
 ```python
-import xarray as xr
-from tipmip_gwl import remap_export_to_gwl
+from tipmip_gwl import load_mapping, list_models, resample_to_gwl, relabel_to_gwl
 
-mp = xr.open_dataset("mapping/gwlmap_GFDL-ESM2M_esm-up2p0_v1.nc")
-export = xr.open_dataset("clusters/GFDL-ESM2M_clusters.nc")  # TOAD_cluster_labels_v1
+print(list_models())
+# ['ACCESS-ESM1-5', 'EC-Earth3-ESM-1', 'GFDL-ESM2M', ...]
 
-# TOAD exports usually zero-base time, so restore calendar years from the mapping:
-on_gwl = remap_export_to_gwl(
-    export, mp, export_start_year=int(mp.attrs["rampup_start_year"])
-)
-# finer bins (use the same step for every model in MMA):
-# on_gwl = remap_export_to_gwl(..., gwl_step=0.05)
-# 'cluster' is now indexed by 'gwl' instead of 'time'; feed these to MMA.
+mp = load_mapping("GFDL-ESM2M")
+on_gwl = resample_to_gwl(mp, my_annual_diagnostic)   # shared 0.02 °C grid
+# on_native = relabel_to_gwl(mp, my_annual_diagnostic)  # model's own GWL axis
 ```
 
-Alignment is by calendar-year *value*. If your export already carries calendar
-years on its time coordinate, omit `export_start_year`. The bin grid is set by
-``gwl_step`` (default ``0.02`` degC) and ``gwl_max`` (default ``4.0``); it does
-not have to match the 0.02 degC grid stored in the mapping file. Use the same
-``gwl_step`` for all models in one MMA run. ``temporal_tolerance`` in MMA is in
-bin index units, so finer bins mean a narrower physical window.
+Full API guide: [docs/using_mappings.md](docs/using_mappings.md).
+
+## Two transforms
+
+| Function | Output axis | Use when |
+|----------|-------------|----------|
+| `resample_to_gwl` | shared 0–4 °C grid (0.02 °C steps) | stacking or comparing models at the same GWL |
+| `relabel_to_gwl` | native per-model GWL (uneven, unbinned) | plotting one model without binning |
+
+Both operate on **annual** data whose coordinate values are calendar years. Values are never extrapolated beyond each model's realised warming range.
+
+## Bundled mappings
+
+The published ramp-up ensemble (`esm-up2p0`, mapping version `v1`) ships inside the package. You do not need to download separate NetCDF files — `load_mapping(model)` resolves them automatically.
+
+Each mapping file is a **coordinate product** (`year_of_gwl`, `gwl_axis`, baseline and provenance metadata), not remapped fields. Apply it to your own variable with the functions above.
+
+To use a locally rebuilt mapping instead, pass `path=` to `load_mapping` or open the file with xarray directly.
 
 ## Repository layout
 
 ```
-src/tipmip_gwl/          Python package (mapping, baseline, preprocess, product, …)
-  data/tas_chunks.tsv      Hand-maintained Levante paths for tas time chunks
-docs/gmstmon_pipeline.md   GMSAT preprocessing guide
-scripts/                   HPC helpers (Levante preprocess, PIK pull); see scripts/README.md
-examples/                  Generic package-usage demos (not paper-specific)
-paper/                     Every figure/table for the paper, one script each,
-                           `python paper/build_all.py` builds all of them
-mapping/                   The data product (gwlmap_*.nc); *.nc is gitignored
+src/tipmip_gwl/          library (mapping algorithm, resample/relabel API, bundled data)
+docs/                    user and maintainer guides
+examples/                runnable tutorials
+paper/                   reproduce paper figures and tables (maintainer / GMD)
+scripts/                 HPC staging helpers; see scripts/README.md
+mapping/                 local build output when regenerating mappings (optional)
 ```
 
-### Reproducing the paper's figures and tables
+## Documentation
+
+| Guide | Audience |
+|-------|----------|
+| [docs/using_mappings.md](docs/using_mappings.md) | **Users** — resample, relabel, ensemble stacks |
+| [docs/building_mappings.md](docs/building_mappings.md) | **Maintainers** — preprocess tas, build mappings, sync bundled data |
+| [docs/gmstmon_pipeline.md](docs/gmstmon_pipeline.md) | **Maintainers** — tas → gmstmon preprocessing detail |
+| [docs/paper_figures.md](docs/paper_figures.md) | **Paper reproduction** — `paper/build_all.py` and figure scripts |
+
+## Reproducing paper figures
+
+Paper figures and tables are built from staged TIPMIP data, not from the library alone. See [docs/paper_figures.md](docs/paper_figures.md).
+
+## Examples
 
 ```bash
-python paper/build_all.py \
-    --up2p0-dir <dir> --picontrol-dir <dir> --mlotst-dir <dir>
+python examples/resample_diagnostic.py GFDL-ESM2M
+python examples/synthetic_demo.py
 ```
 
-Rebuilds `mapping/`, then every figure into `paper/figures/` and every table
-into `paper/tables/`. Each step is also a standalone script with the same
-`--up2p0-dir`/`--picontrol-dir` convention (see each script's docstring):
-`figures_1_2.py`, `baseline_sensitivity.py`, `window_sensitivity.py`,
-`mean_tas_piControl.py`, `diagnostic_remap_demo.py`, `table1.py`.
+## Citation
 
-## File overview
-
-```
-src/tipmip_gwl/
-├── mapping.py       Pure numpy/scipy algorithm (paper Steps 1–3): anomaly
-│                    computation → smoothing and monotonicity → inversion and
-│                    resampling. Works on plain (years, values) arrays; no
-│                    file-format knowledge.
-├── io.py            Read global-mean tas NetCDF (days-in-month weighted annual
-│                    mean) and discover model files in a directory.
-├── baseline.py      Establish each model's anomaly zero point: TIPMIP
-│                    provenance gate, branch-year decode from CMIP metadata,
-│                    and the protocol piControl reference (with drift).
-├── preprocess.py    Build gmstmon from raw tas chunks (`tipmip-gwl-preprocess`).
-├── diagnostics.py   Driver that pairs ramp-up with piControl across models,
-│                    prints the sanity table, and backs the CLI.
-├── product.py       Build the per-model time<->GWL NetCDF product: transform,
-│                    diagnostics, and provenance (backs `tipmip-gwl-build`), plus
-│                    the two continuous transforms `remap_to_gwl` (shared grid)
-│                    and `relabel_to_gwl` (native per-model axis).
-├── regrid_export.py `remap_export_to_gwl`: forward-bin a categorical TOAD
-│                    cluster export onto the common GWL grid before MMA.
-└── plotting.py      Diagnostic figures (ramp-up anomaly overlay; per-model
-                     piControl baseline panels). Needs the `plot` extra.
-
-examples/                 (generic, not paper-specific)
-├── synthetic_demo.py           End-to-end run on synthetic data (no NetCDF needed).
-└── remap_diagnostic.py         Apply a mapping file to a diagnostic variable.
-
-paper/                     (one script per figure/table; build_all.py runs all)
-├── build_all.py                Orchestrator: rebuilds mapping/, then every figure/table.
-├── figures_1_2.py               Figures 1-2: ramp-up GWL overlay; piControl + baseline.
-├── mean_tas_piControl.py        Figure 3: branch-window vs full-mean piControl reference.
-├── diagnostic_remap_demo.py     Figure 4: mixed-layer depth remapped onto the GWL axis.
-├── baseline_sensitivity.py      Table: full vs branch-window baseline (backs Figure 3).
-├── window_sensitivity.py        Table: 21/31/41-yr smoothing-window robustness check.
-└── table1.py                    Table 1 (SI): per-model baseline + robustness diagnostics.
-```
+If you use these mappings or the resampling method in published work, cite the accompanying GMD paper (in preparation) and pin the package version (`tipmip_gwl.__version__`) and mapping version (`v1`).

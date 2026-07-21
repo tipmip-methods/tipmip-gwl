@@ -1,5 +1,0 @@
-/work/bm1448/upload/urshe/TIPMIP/UBERN/GFDL-ESM2M/esm-up2p0/r1i1p1f1/APmon/tas/gn/v20250510/tas_APmon_GFDL-ESM2M_esm-up2p0_r1i1p1f1_gn_186101-191012.nc
-/work/bm1448/upload/urshe/TIPMIP/UBERN/GFDL-ESM2M/esm-up2p0/r1i1p1f1/APmon/tas/gn/v20250510/tas_APmon_GFDL-ESM2M_esm-up2p0_r1i1p1f1_gn_191101-196012.nc
-/work/bm1448/upload/urshe/TIPMIP/UBERN/GFDL-ESM2M/esm-up2p0/r1i1p1f1/APmon/tas/gn/v20250510/tas_APmon_GFDL-ESM2M_esm-up2p0_r1i1p1f1_gn_196101-201012.nc
-/work/bm1448/upload/urshe/TIPMIP/UBERN/GFDL-ESM2M/esm-up2p0/r1i1p1f1/APmon/tas/gn/v20250510/tas_APmon_GFDL-ESM2M_esm-up2p0_r1i1p1f1_gn_201101-206012.nc
-/work/bm1448/upload/urshe/TIPMIP/UBERN/GFDL-ESM2M/esm-up2p0/r1i1p1f1/APmon/tas/gn/v20250510/tas_APmon_GFDL-ESM2M_esm-up2p0_r1i1p1f1_gn_206101-207812.nc

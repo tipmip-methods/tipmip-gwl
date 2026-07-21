@@ -15,11 +15,11 @@ Modules:
 * :mod:`tipmip_gwl.baseline`    -- establish the anomaly zero point: provenance
   gate, branch-year decode, protocol piControl reference.
 * :mod:`tipmip_gwl.diagnostics` -- the driver, sanity table, and CLI.
-* :mod:`tipmip_gwl.product`     -- build the per-model time<->GWL NetCDF product
-  (the transform + diagnostics + provenance) that ships alongside the data, plus
-  the two GWL transforms for *continuous* data: ``remap_to_gwl`` (resample onto
-  the shared 0-4 degC grid) and ``relabel_to_gwl`` (relabel each model's native
-  axis with its own GWL, unbinned).
+* :mod:`tipmip_gwl.product`     -- build and load the per-model time<->GWL NetCDF
+  product (the transform + diagnostics + provenance), plus the two GWL transforms
+  for *continuous* data: ``resample_to_gwl`` (resample onto the shared 0-4 degC
+  grid), ``relabel_to_gwl`` (relabel each model's native axis with its own GWL,
+  unbinned), and ``load_mapping`` (open bundled published ``gwlmap_*.nc`` files).
 * :mod:`tipmip_gwl.rampdown`    -- the same per-model time<->GWL NetCDF product
   for the *ramp-down* leg (monotone non-increasing axis, its own GWL grid).
   A separate product, not a variant of ``product.py``: this leg's parent is
@@ -34,14 +34,10 @@ Modules:
   drift diagnostics (``net_drift``, realised vs. nominal target GWL).
 * :mod:`tipmip_gwl.preprocess`   -- build ``gmstmon`` from raw tas chunks
   (:func:`tipmip_gwl.preprocess.build_gmstmon`, CLI ``tipmip-gwl-preprocess``).
-* :mod:`tipmip_gwl.regrid_export` -- ``remap_export_to_gwl`` and
-  ``bin_export_to_gwl``: forward-bin a *categorical* TOAD cluster export onto
-  the common GWL grid before MMA (from calendar years or an already continuous
-  GWL axis).
 * :mod:`tipmip_gwl.plotting`    -- diagnostic figures (needs the ``plot`` extra).
 """
 
-from . import baseline, diagnostics, io, mapping, plotting, product, rampdown, regrid_export, zehold
+from . import baseline, diagnostics, io, mapping, plotting, product, rampdown, zehold
 from .baseline import (
     Baseline,
     BranchInfo,
@@ -74,10 +70,15 @@ from .mapping import (
 )
 from .plotting import plot_diagnostics
 from .product import (
+    DEFAULT_MAPPING_VERSION,
     NotMappable,
     build_mapping_dataset,
+    bundled_mapping_path,
+    bundled_mappings_dir,
+    list_models,
+    load_mapping,
     relabel_to_gwl,
-    remap_to_gwl,
+    resample_to_gwl,
     write_mapping,
     write_products,
 )
@@ -87,7 +88,6 @@ from .rampdown import (
     write_rampdown_mapping,
     write_rampdown_products,
 )
-from .regrid_export import bin_export_to_gwl, export_on_continuous_gwl, remap_export_to_gwl
 from .zehold import build_ze_mapping_dataset, write_ze_mapping, write_ze_products
 
 __version__ = "0.1.0"
@@ -101,7 +101,6 @@ __all__ = [
     "product",
     "rampdown",
     "zehold",
-    "regrid_export",
     "plotting",
     # mapping
     "MappingConfig",
@@ -139,9 +138,14 @@ __all__ = [
     "print_table",
     "plot_diagnostics",
     # product
+    "DEFAULT_MAPPING_VERSION",
     "NotMappable",
     "build_mapping_dataset",
-    "remap_to_gwl",
+    "bundled_mapping_path",
+    "bundled_mappings_dir",
+    "list_models",
+    "load_mapping",
+    "resample_to_gwl",
     "relabel_to_gwl",
     "write_mapping",
     "write_products",
@@ -157,8 +161,4 @@ __all__ = [
     "build_gmstmon",
     "default_tas_chunks_manifest",
     "load_tas_chunks",
-    # regrid_export
-    "bin_export_to_gwl",
-    "export_on_continuous_gwl",
-    "remap_export_to_gwl",
 ]

@@ -43,7 +43,7 @@ import xarray as xr
 from . import baseline as bl
 from . import mapping
 from .io import discover, load_gmsat_nc, read_attrs
-from .product import load_rampup_baseline
+from .product import resolve_secondary_leg_baseline
 from .mapping import gwl_grid
 from .product import NotMappable, _git_revision, _package_version
 
@@ -159,30 +159,9 @@ def build_rampdown_mapping_dataset(
     pi_years, pi_gmsat = load_gmsat_nc(pi_path)
     pi_attrs = read_attrs(pi_path)
 
-    rampup = load_rampup_baseline(mapping_dir, model) if mapping_dir else None
-    if rampup is not None:
-        ref, method = rampup
-        drift = mapping.picontrol_drift(pi_years, pi_gmsat)
-        finite = np.isfinite(pi_years) & np.isfinite(pi_gmsat)
-        base = bl.Baseline(
-            reference=ref,
-            method=method,
-            n_years=int(finite.sum()),
-            span=(
-                (float(pi_years[finite].min()), float(pi_years[finite].max()))
-                if finite.any()
-                else (np.nan, np.nan)
-            ),
-            drift_degC_per_century=drift["drift_degC_per_century"],
-            detrended=False,
-        )
-    else:
-        if mapping_dir is not None:
-            warns.append(
-                "no ramp-up mapping found in mapping_dir; baseline computed "
-                "from piControl (full mean)"
-            )
-        base = bl.compute_baseline(pi_years, pi_gmsat, branch_year=None)
+    base = resolve_secondary_leg_baseline(
+        mapping_dir, model, pi_years, pi_gmsat, warns=warns
+    )
 
     cfg = mapping.MappingConfig(
         window=window,

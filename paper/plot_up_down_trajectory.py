@@ -1,28 +1,13 @@
 """Combined ramp-up + zero-emission-hold + ramp-down GMSAT trajectory, per model.
 
-Stitches all three mapping products (``product.build_mapping_dataset``,
-``zehold.build_ze_mapping_dataset``, ``rampdown.build_rampdown_mapping_dataset``)
-onto one shared calendar-year x-axis per model, using the ramp-up file's own
-start year as the zero point -- all three legs are read from the same model's
-internal calendar, so this is a direct alignment, not an inference.
-
-A model needs only a ramp-up mapping file to be plotted; ramp-down and any
-number of ZE-hold legs (e.g. gwl2p0 and gwl4p0) are overlaid whenever present.
-The ZE-hold leg's gwl_axis is plotted as-is, non-monotonic and all -- unlike
-the other two legs it is never forced onto a monotone axis, so a wobble in
-the line is real signal (recalcitrant warming / zero-emissions commitment),
-not a plotting artifact.
-
-This is NOT a GWL-vs-GWL hysteresis diagram yet (that needs a second, physical
-diagnostic variable, e.g. mlotst, resampled/relabelled through each leg's own
-transform -- remap_to_gwl for ramp-up/ramp-down, relabel_to_gwl for ZE-hold,
-since only the first two have a valid inverse to remap through). It's a
-preview one level down: does the up-hold-down calendar story look right for
-each model before building that.
+Stitches all three mapping products onto one shared calendar-year x-axis per
+model, using the ramp-up file's start year as the zero point. A model needs
+only a ramp-up mapping file to be plotted; ramp-down and ZE-hold legs are
+overlaid whenever present.
 
 Usage::
 
-    python examples/plot_up_down_trajectory.py --mapping-dir mapping \\
+    python paper/plot_up_down_trajectory.py --mapping-dir mapping \\
         --out paper/figures/up_down_trajectory_preview.png
 """
 
@@ -36,14 +21,12 @@ import xarray as xr
 
 from tipmip_gwl.io import model_label
 
-DEFAULT_MAPPING_DIR = Path(__file__).resolve().parent.parent / "mapping"
-DEFAULT_OUT = (
-    Path(__file__).resolve().parent.parent / "paper/figures/up_down_trajectory_preview.png"
-)
+PAPER_DIR = Path(__file__).resolve().parent
+DEFAULT_MAPPING_DIR = PAPER_DIR.parent / "mapping"
+DEFAULT_OUT = PAPER_DIR / "figures/up_down_trajectory_preview.png"
 
 UP_COLOR = "tab:red"
 DN_COLOR = "tab:blue"
-# ZE-hold colors keyed by nominal target GWL; unseen targets fall back to the cycle.
 ZE_COLOR_BY_TARGET = {2.0: "tab:orange", 4.0: "tab:brown"}
 ZE_COLOR_FALLBACK = ["tab:olive", "tab:purple", "tab:pink", "tab:gray"]
 
@@ -53,12 +36,7 @@ def _leg_of(ds: xr.Dataset) -> str:
 
 
 def _discover_legs(mapping_dir: Path) -> dict[str, dict]:
-    """Group every mapping file by canonical model id and leg.
-
-    Returns ``{model_id: {"up": path, "down": path|None, "ze": [paths]}}``.
-    Uses ``model_id`` / staged filename tokens, not ``source_id``, so labels
-    stay consistent when CMIP metadata differs (e.g. UKESM1-2-LL).
-    """
+    """Group every mapping file by canonical model id and leg."""
     by_model: dict[str, dict] = {}
     for p in sorted(mapping_dir.glob("gwlmap_*.nc")):
         with xr.open_dataset(p) as ds:
@@ -75,8 +53,6 @@ def _discover_legs(mapping_dir: Path) -> dict[str, dict]:
 
 
 def _ze_color(target_gwl: float, fallback_used: dict) -> str:
-    # NaN never equals itself, so a bare NaN dict key would silently pick a
-    # new fallback color on every call -- route it through one shared bucket.
     key = "unparsed" if not np.isfinite(target_gwl) else round(target_gwl, 2)
     if key in ZE_COLOR_BY_TARGET:
         return ZE_COLOR_BY_TARGET[key]
@@ -129,7 +105,10 @@ def main(mapping_dir=None, out=None) -> Path:
                 x_ze = ze["year"].values - up_year0
                 ax.plot(x_ze, ze["gmsat_anomaly"].values, lw=0.7, alpha=0.35, color=color)
                 ax.plot(
-                    x_ze, ze["gwl_axis"].values, lw=1.8, color=color,
+                    x_ze,
+                    ze["gwl_axis"].values,
+                    lw=1.8,
+                    color=color,
                     label=f"ZE hold ({target:g}\N{DEGREE SIGN}C)",
                 )
                 y_min = min(y_min, float(np.nanmin(ze["gwl_axis"].values)))
@@ -146,7 +125,13 @@ def main(mapping_dir=None, out=None) -> Path:
 
         ax.axhline(0.0, color="k", lw=0.6, alpha=0.2)
         ax.text(
-            0.03, 0.94, model, transform=ax.transAxes, ha="left", va="top", fontsize=8,
+            0.03,
+            0.94,
+            model,
+            transform=ax.transAxes,
+            ha="left",
+            va="top",
+            fontsize=8,
             bbox=dict(facecolor="white", edgecolor="none", alpha=0.7, pad=0.2),
         )
 
@@ -161,12 +146,12 @@ def main(mapping_dir=None, out=None) -> Path:
                 uniq.values(), uniq.keys(), fontsize=7, loc="lower right", framealpha=0.7
             )
 
-    for ax in axes.flat[len(models):]:
+    for ax in axes.flat[len(models) :]:
         ax.set_visible(False)
     for ax in axes.flat[: len(models)]:
         ax.set_ylim(y_min - 0.3, y_max + 0.3)
 
-    gap_note = "gap = unmapped zero-emission hold" if not legs else "gaps: legs not staged for that model"
+    gap_note = "gap = unmapped zero-emission hold"
     if ze_targets_seen and have_down:
         gap_note = "any remaining gap = a ZE-hold target with no matching ramp-down leg staged"
     fig.suptitle(

@@ -1,5 +1,5 @@
 """
-Zoomed illustration: relabel_to_gwl (native GWL axis) vs remap_to_gwl (0.02 °C grid).
+Zoomed illustration: relabel_to_gwl (native GWL axis) vs resample_to_gwl (0.02 °C grid).
 
 Native points (circles) sit at each year's forward-mapped GWL, horizontal segments
 show the lateral shift onto the nearest 0.02 °C grid line, and squares mark the
@@ -19,6 +19,10 @@ import argparse
 import sys
 from pathlib import Path
 
+_PAPER = Path(__file__).resolve().parent
+if str(_PAPER) not in sys.path:
+    sys.path.insert(0, str(_PAPER))
+
 import matplotlib.pyplot as plt
 import numpy as np
 import xarray as xr
@@ -26,11 +30,17 @@ from matplotlib.lines import Line2D
 from matplotlib.ticker import FormatStrFormatter
 
 from tipmip_gwl.mapping import GWL_GRID_STEP, gwl_grid
-from tipmip_gwl.product import relabel_to_gwl, remap_to_gwl
+from tipmip_gwl.product import relabel_to_gwl, resample_to_gwl
+
+from mlotst_remap_helpers import (
+    area_weighted_global_mean,
+    calendar_years,
+    discover_native_mlotst,
+    lat_name,
+    mapping_index_by_rampup_model,
+)
 
 PAPER_DIR = Path(__file__).resolve().parent
-sys.path.insert(0, str(PAPER_DIR))
-import diagnostic_remap_demo as ddemo  # noqa: E402
 
 DEFAULT_MODELS = ("GFDL-ESM2M", "MIROC-ES2L")
 DEFAULT_OUT = PAPER_DIR / "figures" / "diagnostic_remap_binned_demo.png"
@@ -39,15 +49,15 @@ N_NATIVE = 6
 
 def _load_series(model, mlotst_path, mapping_path):
     with xr.open_dataset(mlotst_path, decode_times=False) as ds:
-        years_cal = ddemo._calendar_years(ds)
-        vals = ddemo._area_weighted_global_mean(ds["mlotst"], ds[ddemo._lat_name(ds)])
+        years_cal = calendar_years(ds)
+        vals = area_weighted_global_mean(ds["mlotst"], ds[lat_name(ds)])
 
     with xr.open_dataset(mapping_path) as mapping_ds:
         da = xr.DataArray(vals, dims=("time",), coords={"time": years_cal})
         relabelled = relabel_to_gwl(
             mapping_ds, da, year_dim="time", year_offset=0.0, new_dim="gwl"
         )
-        binned = remap_to_gwl(mapping_ds, da, year_dim="time")
+        binned = resample_to_gwl(mapping_ds, da, year_dim="time")
 
     binned_gwl = binned["gwl"].values.astype(float)
     binned_vals = binned.values.astype(float)
@@ -206,7 +216,7 @@ def _plot(
             markeredgecolor="k",
             markersize=7,
             lw=0,
-            label="remap_to_gwl (common grid)",
+            label="resample_to_gwl (common grid)",
         ),
         Line2D([0], [0], color="0.5", lw=1.2, label="shift onto grid"),
     ]
@@ -227,8 +237,8 @@ def main(
 ):
     mlotst_dir = Path(mlotst_dir)
     mapping_dir = Path(mapping_dir)
-    mlotst_files = ddemo._discover_native_mlotst(mlotst_dir)
-    mapping_files = ddemo._mapping_index_by_rampup_model(mapping_dir)
+    mlotst_files = discover_native_mlotst(mlotst_dir)
+    mapping_files = mapping_index_by_rampup_model(mapping_dir)
 
     models = tuple(models)
     missing = [m for m in models if m not in mlotst_files or m not in mapping_files]
@@ -269,7 +279,7 @@ def main(
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Zoomed relabel_to_gwl vs remap_to_gwl illustration."
+        description="Zoomed relabel_to_gwl vs resample_to_gwl illustration."
     )
     parser.add_argument("--mlotst-dir", required=True)
     parser.add_argument("--mapping-dir", default="mapping")

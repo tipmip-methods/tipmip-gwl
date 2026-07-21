@@ -1,5 +1,0 @@
-/work/bm1448/upload/optimesm/UKESM1-2/esm-piControl/r1i1p1f1/Amon/tas/gn/v20241002/tas_Amon_UKESM1-2-LL_esm-piControl_r1i1p1f1_gn_210001-214912.nc
-/work/bm1448/upload/optimesm/UKESM1-2/esm-piControl/r1i1p1f1/Amon/tas/gn/v20241002/tas_Amon_UKESM1-2-LL_esm-piControl_r1i1p1f1_gn_215001-224912.nc
-/work/bm1448/upload/optimesm/UKESM1-2/esm-piControl/r1i1p1f1/Amon/tas/gn/v20241002/tas_Amon_UKESM1-2-LL_esm-piControl_r1i1p1f1_gn_225001-234912.nc
-/work/bm1448/upload/optimesm/UKESM1-2/esm-piControl/r1i1p1f1/Amon/tas/gn/v20241002/tas_Amon_UKESM1-2-LL_esm-piControl_r1i1p1f1_gn_235001-244912.nc
-/work/bm1448/upload/optimesm/UKESM1-2/esm-piControl/r1i1p1f1/Amon/tas/gn/v20241002/tas_Amon_UKESM1-2-LL_esm-piControl_r1i1p1f1_gn_245001-250012.nc

@@ -1,6 +1,0 @@
-/work/bm1448/upload/tipesm/IPSL-CM6-ESMCO2/esm-up2p0/r1i2p3f1/Amon/tas/v20260226/tas_Amon_IPSL-CM6-ESMCO2_esm-up2p0_r1i2p3f1_gr_185001-194912.nc
-/work/bm1448/upload/tipesm/IPSL-CM6-ESMCO2/esm-up2p0/r1i2p3f1/Amon/tas/v20260226/tas_Amon_IPSL-CM6-ESMCO2_esm-up2p0_r1i2p3f1_gr_195001-204912.nc
-/work/bm1448/upload/tipesm/IPSL-CM6-ESMCO2/esm-up2p0/r1i2p3f1/Amon/tas/v20260226/tas_Amon_IPSL-CM6-ESMCO2_esm-up2p0_r1i2p3f1_gr_205001-214912.nc
-/work/bm1448/upload/tipesm/IPSL-CM6-ESMCO2/esm-up2p0/r1i2p3f1/Amon/tas/v20260226/tas_Amon_IPSL-CM6-ESMCO2_esm-up2p0_r1i2p3f1_gr_215001-224912.nc
-/work/bm1448/upload/tipesm/IPSL-CM6-ESMCO2/esm-up2p0/r1i2p3f1/Amon/tas/v20260226/tas_Amon_IPSL-CM6-ESMCO2_esm-up2p0_r1i2p3f1_gr_225001-234912.nc
-/work/bm1448/upload/tipesm/IPSL-CM6-ESMCO2/esm-up2p0/r1i2p3f1/Amon/tas/v20260226/tas_Amon_IPSL-CM6-ESMCO2_esm-up2p0_r1i2p3f1_gr_235001-243912.nc

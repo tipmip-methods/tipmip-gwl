@@ -13,6 +13,10 @@ Each file records enough to make a downstream analysis reproducible and pinnable
 input ``tracking_id``s, the parent run, the baseline method and drift, the
 monotonisation adjustment, the code version, and a mapping version.
 
+Downstream users load published files with :func:`load_mapping` (bundled in the
+package) and apply :func:`resample_to_gwl` or :func:`relabel_to_gwl` to their
+own diagnostics.
+
 Dependencies: numpy, xarray, and the sibling :mod:`tipmip_gwl` modules.
 """
 
@@ -20,6 +24,7 @@ from __future__ import annotations
 
 import argparse
 import datetime as _dt
+import re
 import subprocess
 from pathlib import Path
 
@@ -293,6 +298,40 @@ def load_rampup_baseline(mapping_dir, model) -> tuple[float, str] | None:
     return None
 
 
+def resolve_secondary_leg_baseline(
+    mapping_dir,
+    model,
+    pi_years,
+    pi_gmsat,
+    *,
+    warns: list[str] | None = None,
+) -> bl.Baseline:
+    """Baseline for ramp-down / ZE-hold legs: inherit ramp-up product when present."""
+    rampup = load_rampup_baseline(mapping_dir, model) if mapping_dir else None
+    if rampup is not None:
+        ref, method = rampup
+        drift = mapping.picontrol_drift(pi_years, pi_gmsat)
+        finite = np.isfinite(pi_years) & np.isfinite(pi_gmsat)
+        return bl.Baseline(
+            reference=ref,
+            method=method,
+            n_years=int(finite.sum()),
+            span=(
+                (float(pi_years[finite].min()), float(pi_years[finite].max()))
+                if finite.any()
+                else (np.nan, np.nan)
+            ),
+            drift_degC_per_century=drift["drift_degC_per_century"],
+            detrended=False,
+        )
+    if mapping_dir is not None and warns is not None:
+        warns.append(
+            "no ramp-up mapping found in mapping_dir; baseline computed "
+            "from piControl (full mean)"
+        )
+    return bl.compute_baseline(pi_years, pi_gmsat, branch_year=None)
+
+
 def write_mapping(ds: xr.Dataset, outdir, filename: str | None = None) -> Path:
     """Write a mapping dataset to NetCDF, returning the path."""
     outdir = Path(outdir)
@@ -306,12 +345,90 @@ def write_mapping(ds: xr.Dataset, outdir, filename: str | None = None) -> Path:
     return path
 
 
+DEFAULT_EXPERIMENT = "esm-up2p0"
+DEFAULT_MAPPING_VERSION = "v1"
+
+_FILENAME_RE = re.compile(
+    r"^gwlmap_(?P<model>.+)_(?P<experiment>[^_]+(?:-[^_]+)*)_(?P<version>v\d+)\.nc$"
+)
+
+
+def bundled_mappings_dir() -> Path:
+    """Directory containing ramp-up mapping files bundled in the wheel/sdist."""
+    return Path(__file__).resolve().parent / "data" / "mappings"
+
+
+def _parse_mapping_filename(path: Path) -> tuple[str, str, str] | None:
+    m = _FILENAME_RE.match(path.name)
+    if not m:
+        return None
+    return m.group("model"), m.group("experiment"), m.group("version")
+
+
+def list_models(
+    *,
+    version: str = DEFAULT_MAPPING_VERSION,
+    experiment: str = DEFAULT_EXPERIMENT,
+    mapping_dir: Path | str | None = None,
+) -> list[str]:
+    """Return sorted model ids with a mapping file in ``mapping_dir``.
+
+    Defaults to the bundled ramp-up ensemble shipped with the package.
+    """
+    root = Path(mapping_dir) if mapping_dir is not None else bundled_mappings_dir()
+    models: list[str] = []
+    for path in sorted(root.glob("gwlmap_*.nc")):
+        parsed = _parse_mapping_filename(path)
+        if parsed is None:
+            continue
+        model, exp, ver = parsed
+        if exp == experiment and ver == version:
+            models.append(model)
+    return models
+
+
+def bundled_mapping_path(
+    model: str,
+    *,
+    version: str = DEFAULT_MAPPING_VERSION,
+    experiment: str = DEFAULT_EXPERIMENT,
+) -> Path:
+    """Path to a bundled mapping file (raises ``FileNotFoundError`` if absent)."""
+    path = bundled_mappings_dir() / f"gwlmap_{model}_{experiment}_{version}.nc"
+    if not path.is_file():
+        available = ", ".join(list_models(version=version, experiment=experiment))
+        raise FileNotFoundError(
+            f"no bundled mapping for {model!r} ({experiment}, {version}); "
+            f"available models: {available or '(none)'}"
+        )
+    return path
+
+
+def load_mapping(
+    model: str,
+    *,
+    version: str = DEFAULT_MAPPING_VERSION,
+    experiment: str = DEFAULT_EXPERIMENT,
+    path: Path | str | None = None,
+) -> xr.Dataset:
+    """Load a ramp-up mapping product into memory.
+
+    By default opens the copy bundled with the installed package. Pass ``path=``
+    to use a custom ``gwlmap_*.nc`` (for example one you rebuilt locally).
+    """
+    src = Path(path) if path is not None else bundled_mapping_path(
+        model, version=version, experiment=experiment
+    )
+    with xr.open_dataset(src) as ds:
+        return ds.load()
+
+
 def _year_of_gwl_target(
     mapping_ds: xr.Dataset,
     gwl_step: float = mapping.GWL_GRID_STEP,
     gwl_max: float = 4.0,
 ) -> xr.DataArray:
-    """Fractional model year at each GWL on the requested grid (for ``remap_to_gwl``)."""
+    """Fractional model year at each GWL on the requested grid (for ``resample_to_gwl``)."""
     grid = gwl_grid(gwl_step, gwl_max)
     src_gwl = np.asarray(mapping_ds["gwl"].values, dtype=float)
     src_years = np.asarray(mapping_ds["year_of_gwl"].values, dtype=float)
@@ -324,7 +441,7 @@ def _year_of_gwl_target(
     return xr.DataArray(years, dims=["gwl"], coords={"gwl": ("gwl", grid)})
 
 
-def remap_to_gwl(
+def resample_to_gwl(
     mapping_ds,
     data,
     year_dim="year",
@@ -332,7 +449,7 @@ def remap_to_gwl(
     gwl_step: float = mapping.GWL_GRID_STEP,
     gwl_max: float = 4.0,
 ):
-    """Remap a diagnostic from calendar time onto the common GWL grid.
+    """Resample a diagnostic from calendar time onto the common GWL grid.
 
     This is the operational use of a mapping file: it applies ``year_of_gwl``
     (the inverse transform t(GWL)) to your own variable, returning it indexed by
@@ -387,7 +504,7 @@ def relabel_to_gwl(
 ):
     """Relabel a model's time axis with continuous GWL via the forward map.
 
-    The *other* GWL transform. Where :func:`remap_to_gwl` resamples a diagnostic
+    The *other* GWL transform. Where :func:`resample_to_gwl` resamples a diagnostic
     onto the shared 0-4 degC grid (binned, comparable across models), this keeps
     the data at its **native temporal resolution** and merely replaces the year
     coordinate with the warming level reached that year -- the forward transform
@@ -405,13 +522,12 @@ def relabel_to_gwl(
         Name of the time coordinate on ``data`` (default ``"year"``).
     year_offset : float
         Added to ``data[year_dim]`` before alignment, to turn a zero-based axis
-        into calendar years (e.g. pass the mapping's ``rampup_start_year`` for a
-        TOAD export whose time starts at 0). Default ``0.0`` (already calendar).
+        into calendar years (e.g. pass the mapping's ``rampup_start_year`` for an
+        export whose time starts at 0). Default ``0.0`` (already calendar).
     new_dim : str or None
         Rename the relabelled dimension to this (default ``"gwl"``). Pass ``None``
         to keep ``year_dim`` as the dimension name -- useful when a downstream tool
-        still expects the original axis name (e.g. TOAD's ``time_dim``) but with
-        GWL values.
+        still expects the original axis name but with GWL values.
 
     Returns
     -------

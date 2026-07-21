@@ -7,7 +7,7 @@ warming level (GWL) rather than at a common year.
 
 This module is deliberately free of any file-format or CMIP knowledge: it works
 on plain (years, values) arrays. The TIPMIP/NetCDF-specific glue lives in
-:mod:`tipmip_gwl.tipmip`.
+:mod:`tipmip_gwl.io`.
 
 Scope / assumptions
 -------------------
@@ -22,8 +22,10 @@ Scope / assumptions
   monotonic over that full span (up, then flat, then down), so no single
   ``direction`` fits it. The zero-emission hold leg needs no monotone axis at
   all (see the paper draft); build each leg's mapping independently.
-* Baseline (the zero of the anomaly) is the mean of the model's OWN piControl
-  GMSAT over the full control run.
+* Baseline (the zero of the anomaly) is defined in :mod:`tipmip_gwl.baseline`
+  (default: 31-yr branch-window mean from piControl when branch metadata
+  allows, otherwise full piControl mean). This module only consumes the
+  resulting reference value.
 
 Pipeline (paper Steps 1–3)
 --------------------------

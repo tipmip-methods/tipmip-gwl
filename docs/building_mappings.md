@@ -1,0 +1,106 @@
+# Building mapping products
+
+This guide is for **maintainers** who regenerate the `gwlmap_*.nc` coordinate
+products from staged TIPMIP tas. End users who only want to resample their own
+diagnostics should install the package and follow
+[using_mappings.md](using_mappings.md) instead.
+
+## Overview
+
+The mapping pipeline has three steps, applied identically to every model:
+
+1. **Anomaly computation** — weighted annual-mean GMSAT, 31-yr branch-window
+   piControl baseline (full mean when branch metadata is missing or out of span)
+2. **Smoothing and monotonicity** — 31-year centred running mean, then isotonic
+   (PAVA) regression
+3. **Inversion** — store `year_of_gwl(gwl)` on the common 0–4 °C grid and
+   `gwl_axis(year)` on the native year axis
+
+Archive preprocessing builds monthly `gmstmon` from raw `tas`; the
+days-in-month-weighted annual mean is applied on read (Step 1). See
+[gmstmon_pipeline.md](gmstmon_pipeline.md) for preprocessing detail.
+
+## Quick start (rebuild locally)
+
+```bash
+conda activate toad312
+pip install -e ".[plot]"
+
+# 1. Stage gmstmon (if not already on disk)
+tipmip-gwl-preprocess --exp esm-piControl --outdir ~/Desktop/tipmip/tas/esm-piControl/gmstmon
+tipmip-gwl-preprocess --exp esm-up2p0       --outdir ~/Desktop/tipmip/tas/esm-up2p0/gmstmon
+
+# 2. Optional sanity table + diagnostic figures
+tipmip-gwl-diagnostics \
+  --up2p0-dir ~/Desktop/tipmip/tas/esm-up2p0/gmstmon \
+  --picontrol-dir ~/Desktop/tipmip/tas/esm-piControl/gmstmon \
+  --plot --plotdir figures/
+
+# 3. Build mapping products
+tipmip-gwl-build \
+  --up2p0-dir ~/Desktop/tipmip/tas/esm-up2p0/gmstmon \
+  --picontrol-dir ~/Desktop/tipmip/tas/esm-piControl/gmstmon \
+  --outdir mapping/
+```
+
+Output: one NetCDF per mappable model under `mapping/`, named
+`gwlmap_<model>_esm-up2p0_v1.nc`.
+
+A model is skipped only when it has no matching piControl tas on disk. Other
+provenance issues are recorded as warnings on the file; the model is still mapped
+when possible.
+
+## Published baseline
+
+The published baseline is the **31-yr mean centred on the branch year**
+(trailing first 31 years when the branch is at piControl start). Models with
+missing or out-of-span branch years fall back to the **full piControl mean**
+(NorESM2-LM). For the staged ensemble, |full mean − branch window| is at most
+~0.09 K — see `paper/baseline_sensitivity.py`.
+
+## Sync bundled mappings (release step)
+
+End users load mappings via `load_mapping(model)` from package data shipped at
+`src/tipmip_gwl/data/mappings/`. After rebuilding `mapping/` locally, refresh
+the bundled snapshot before tagging a release:
+
+```bash
+python scripts/sync_bundled_mappings.py
+# copies mapping/gwlmap_*_esm-up2p0_v1.nc -> src/tipmip_gwl/data/mappings/
+```
+
+Commit the updated `.nc` files so `pip install tipmip-gwl` carries the new
+ensemble.
+
+## Product file contents
+
+Each `gwlmap_*.nc` includes:
+
+- `year_of_gwl(gwl)` — model year at each GWL on the common grid (NaN beyond range)
+- `gwl_axis(year)` — forward GWL(t) on the native year axis
+- `gmsat_anomaly(year)`, `gmsat_anomaly_smoothed(year)`
+- Scalars: `baseline_gmsat`, `branch_year`, `picontrol_drift`, `monotonization_max`,
+  `max_gwl_reached`, `baseline_method`
+- Provenance: input `tracking_id`s, parent run, code version, git revision,
+  `mapping_version`
+
+## Exploratory legs
+
+Ramp-down and zero-emission-hold legs use separate builders (`tipmip-gwl-build-rampdown`,
+`tipmip-gwl-build-zehold`). They are not bundled with the default user install;
+see `paper/build_all.py` when those tas directories are staged.
+
+## Python API (building)
+
+```python
+from tipmip_gwl.product import build_mapping_dataset, write_mapping, write_products
+
+written, skipped = write_products(up2p0_dir, picontrol_dir, "mapping/")
+```
+
+## Further reading
+
+- [gmstmon_pipeline.md](gmstmon_pipeline.md) — tas → gmstmon preprocessing
+- [using_mappings.md](using_mappings.md) — applying mappings downstream
+- [paper_figures.md](paper_figures.md) — reproducing figures that use these mappings
+- [../scripts/README.md](../scripts/README.md) — Levante / PIK staging helpers

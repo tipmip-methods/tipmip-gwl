@@ -2,9 +2,13 @@
 
 How we prepare **global-mean surface air temperature (GMSAT)** for TIPMIP analysis.
 This is the archive preprocessing stage of **Step 1 (anomaly computation)** in
-the mapping pipeline (see the package README).
+the mapping pipeline.
 
 **Tool:** `tipmip-gwl-preprocess` + bundled path list `src/tipmip_gwl/data/tas_chunks.tsv`.
+
+**Downstream:** after gmstmon is staged, build mappings with
+[building_mappings.md](building_mappings.md). End users who only resample their
+own diagnostics can skip this entirely — see [using_mappings.md](using_mappings.md).
 
 HPC helpers: `scripts/` (see `scripts/README.md`).
 
@@ -91,14 +95,9 @@ tipmip-gwl-preprocess \
 
 ### Downstream
 
-```bash
-tipmip-gwl-build \
-  --up2p0-dir ~/Desktop/tipmip/tas/esm-up2p0/gmstmon \
-  --picontrol-dir ~/Desktop/tipmip/tas/esm-piControl/gmstmon \
-  --outdir mapping/
-```
-
-Diagnostic figure: `python examples/mean_tas_piControl.py`
+See [building_mappings.md](building_mappings.md) for `tipmip-gwl-build` and syncing
+bundled mappings. Diagnostic figure: `python paper/mean_tas_piControl.py` (requires
+staged tas — [paper_figures.md](paper_figures.md)).
 
 ---
 
@@ -118,17 +117,25 @@ Do **not** use `cdo yearmean` for the baseline.
 | `--backend` | Behaviour |
 |-------------|-----------|
 | `auto` (default) | CDO if installed (`mergetime` + `fldmean`), else xarray |
-| `cdo` | Matches legacy `merge_var.sh` output exactly |
+| `cdo` | CDO merge + field mean (same backend as `auto` when CDO is available) |
 | `xarray` | Pure Python; cos(lat) if no `areacella` passed |
 
 ---
 
-## Legacy
+## Other TIPMIP experiments
 
-`scripts/legacy/` holds the old CDO merge pipeline and `merge_lists/tas/` for
-reference. Superseded by `tipmip-gwl-preprocess`.
+The bundled `tas_chunks.tsv` also lists ramp-down, ZE-hold, and other legs. Use
+the same command with the matching `experiment_id`, for example:
 
-Mixed-layer **mlotst** scripts remain in `phd-toad/TIPMIP/analysis/mixed-layer/data/`.
+```bash
+tipmip-gwl-preprocess \
+  --exp esm-up2p0-gwl2p0-50y-dn2p0 \
+  --outdir /work/.../merged/tas/esm-up2p0-gwl2p0-50y-dn2p0/gmstmon
+```
+
+NorESM2-LM uses `esm-up2p0-swl2p0-50y-dn2p0` instead (also in the manifest).
+
+Mixed-layer **mlotst** preprocessing is handled outside this package.
 
 ---
 
