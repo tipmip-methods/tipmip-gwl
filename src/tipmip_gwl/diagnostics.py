@@ -31,6 +31,7 @@ class ModelDiag:
     branch_known: int | None
     baseline_method: str
     pi_reference: float
+    pi_reference_full: float
     pi_drift: float
     max_gwl: float
     monotonization_max: float
@@ -87,6 +88,7 @@ def run_diagnostics(up2p0_dir, picontrol_dir, window=31, detrend=False):
                     np.nan,
                     np.nan,
                     np.nan,
+                    np.nan,
                     parent,
                     warns,
                 )
@@ -106,6 +108,10 @@ def run_diagnostics(up2p0_dir, picontrol_dir, window=31, detrend=False):
             pi_gmsat,
             branch,
             detrend=detrend,
+            window=window,
+        )
+        pi_reference_full = mapping.picontrol_reference(
+            pi_years, pi_gmsat, branch, detrend=detrend
         )
         if (
             np.isfinite(base.drift_degC_per_century)
@@ -140,6 +146,7 @@ def run_diagnostics(up2p0_dir, picontrol_dir, window=31, detrend=False):
                 branch_known=known,
                 baseline_method=base.method,
                 pi_reference=base.reference,
+                pi_reference_full=pi_reference_full,
                 pi_drift=base.drift_degC_per_century,
                 max_gwl=float(np.nanmax(T_axis)),
                 monotonization_max=rep["monotonization_max_degC"],

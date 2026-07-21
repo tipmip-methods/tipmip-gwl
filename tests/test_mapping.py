@@ -20,10 +20,15 @@ from tipmip_gwl.mapping import (
 
 
 def test_gwl_grid_endpoints_included():
-    grid = gwl_grid(step=0.1, gwl_max=4.0)
+    grid = gwl_grid(gwl_max=4.0)
     assert grid[0] == 0.0
     assert grid[-1] == pytest.approx(4.0)
-    assert grid.size == 41
+    assert grid.size == 201
+
+
+def test_gwl_grid_default_step_is_0p02():
+    grid = gwl_grid(gwl_max=1.0)
+    assert grid[1] - grid[0] == pytest.approx(0.02)
 
 
 def test_gwl_grid_rejects_bad_args():
@@ -31,6 +36,15 @@ def test_gwl_grid_rejects_bad_args():
         gwl_grid(step=0.0)
     with pytest.raises(ValueError):
         gwl_grid(gwl_max=-1.0)
+    with pytest.raises(ValueError):
+        gwl_grid(gwl_min=1.0, gwl_max=1.0)
+
+
+def test_gwl_grid_supports_negative_min_for_rampdown():
+    grid = gwl_grid(step=0.1, gwl_min=-1.5, gwl_max=2.0)
+    assert grid[0] == pytest.approx(-1.5)
+    assert grid[-1] == pytest.approx(2.0)
+    assert grid.size == 36
 
 
 def test_picontrol_reference_recovers_mean():
@@ -119,6 +133,50 @@ class TestAxisVariable:
         T, T_pre = axis_variable(years, anom, return_intermediate=True)
         assert T.shape == T_pre.shape == years.shape
 
+    def test_unknown_direction_raises(self):
+        with pytest.raises(ValueError):
+            axis_variable(np.arange(10), np.zeros(10), direction="sideways")
+
+    def test_decreasing_running_mean_is_monotone_nonincreasing(self):
+        years = np.arange(200)
+        rng = np.random.default_rng(1)
+        anom = 2.0 - 0.02 * years + 0.15 * rng.standard_normal(years.size)
+        T = axis_variable(
+            years, anom, method="running_mean", window=31, direction="decreasing"
+        )
+        assert np.all(np.diff(T) <= 0)
+
+    def test_decreasing_monotone_spline_is_monotone_nonincreasing(self):
+        years = np.arange(200)
+        rng = np.random.default_rng(2)
+        anom = 2.0 - 0.02 * years + 0.15 * rng.standard_normal(years.size)
+        T = axis_variable(years, anom, method="monotone_spline", direction="decreasing")
+        assert np.all(np.diff(T) <= 0)
+
+    def test_decreasing_cummax_is_monotone_nonincreasing(self):
+        years = np.arange(200)
+        rng = np.random.default_rng(3)
+        anom = 2.0 - 0.02 * years + 0.15 * rng.standard_normal(years.size)
+        T = axis_variable(
+            years, anom, method="cummax", window=31, direction="decreasing"
+        )
+        assert np.all(np.diff(T) <= 0)
+
+    def test_clean_linear_decline_monotonization_does_no_work(self):
+        # Mirror of the increasing-case invariant: a clean decline needs no
+        # PAVA correction once smoothed.
+        years = np.arange(300)
+        anom = 2.0 - 0.02 * years  # noise-free, strictly decreasing
+        T, T_pre = axis_variable(
+            years,
+            anom,
+            method="running_mean",
+            window=31,
+            return_intermediate=True,
+            direction="decreasing",
+        )
+        np.testing.assert_allclose(T, T_pre, atol=1e-10)
+
 
 def test_monotonicity_report_flags_plateau():
     anom_raw = np.array([0.0, 0.1, 0.05, 0.2, 0.2, 0.3])
@@ -149,6 +207,25 @@ class TestInvertToGrid:
         T_axis = np.array([0, 0, 0, 1, 1, 1, 2, 2, 2, 3], dtype=float)
         t_of_T = invert_to_grid(years, T_axis, np.array([0.5, 1.5, 2.5]))
         assert np.all(np.isfinite(t_of_T))
+
+    def test_decreasing_recovers_known_linear_relationship(self):
+        # T(t) = 2.0 - 0.02*t is exactly invertible: t(T) = (2.0 - T) / 0.02
+        years = np.arange(0, 200, dtype=float)
+        T_axis = 2.0 - 0.02 * years
+        T_grid = np.array([2.0, 1.5, 1.0, 0.0, -1.0])
+        t_of_T = invert_to_grid(years, T_axis, T_grid, direction="decreasing")
+        np.testing.assert_allclose(t_of_T, (2.0 - T_grid) / 0.02, atol=1e-6)
+
+    def test_decreasing_out_of_range_grid_values_are_nan(self):
+        years = np.arange(0, 50, dtype=float)
+        T_axis = 2.0 - 0.02 * years  # min ~1.02
+        t_of_T = invert_to_grid(years, T_axis, np.array([-1.0, -2.0]), direction="decreasing")
+        assert np.all(np.isnan(t_of_T))
+
+    def test_unknown_direction_raises(self):
+        years = np.arange(0, 10, dtype=float)
+        with pytest.raises(ValueError):
+            invert_to_grid(years, years, np.array([1.0]), direction="sideways")
 
 
 def test_resample_variable_linear_interp_and_nan_propagation():
@@ -182,6 +259,34 @@ class TestMapModelEndToEnd:
         assert mm.diagnostics["pi_reference_GMSAT"] == pytest.approx(286.5, abs=0.02)
         assert np.all(np.diff(mm.T_axis) >= 0)
         assert mm.T_pre.shape == mm.T_axis.shape
+
+    def test_decreasing_direction_recovers_monotone_cooling_axis(self):
+        # Ramp-down-like leg: GMSAT cools from a branch anomaly of +2 degC.
+        rng = np.random.default_rng(42)
+        pi_years = np.arange(1, 701)
+        pi_gmsat = 286.5 + 0.12 * rng.standard_normal(pi_years.size)
+        branch_year = 350
+        dn_years = np.arange(branch_year, branch_year + 150)
+        t = dn_years - branch_year
+        true_anom = 2.0 - 0.02 * t
+        dn_gmsat = 286.5 + true_anom + 0.13 * rng.standard_normal(t.size)
+        cfg = MappingConfig(
+            window=31,
+            T_grid=gwl_grid(step=0.1, gwl_min=-1.0, gwl_max=2.0),
+            direction="decreasing",
+        )
+        mm = map_model(
+            "SYNTH-DN", dn_years, dn_gmsat, pi_years, pi_gmsat, branch_year, cfg=cfg
+        )
+        assert mm.diagnostics["pi_reference_GMSAT"] == pytest.approx(286.5, abs=0.02)
+        assert np.all(np.diff(mm.T_axis) <= 0)
+        assert mm.T_pre.shape == mm.T_axis.shape
+        # T_grid ascends; since GWL falls over time on this leg, the model
+        # year reached for each grid point should be non-increasing along it
+        # (higher GWL values occur earlier, near the branch).
+        finite = np.isfinite(mm.t_of_T)
+        assert finite.sum() > 10
+        assert np.all(np.diff(mm.t_of_T[finite]) <= 1e-6)
 
     def test_precomputed_pi_reference_is_used_verbatim(self):
         rng = np.random.default_rng(7)

@@ -3,8 +3,8 @@ baseline.py
 ===========
 Establish the anomaly zero point for each model from its TIPMIP file: decide
 whether the run is admissible, where it branched, and what its piControl
-reference is. The provenance and branch-year steps read CMIP-standard global
-attributes; the reference is the full piControl mean those steps feed.
+reference is the 31-yr branch-window mean at the decoded branch year when
+possible, otherwise the full piControl mean.
 
 It provides:
 
@@ -13,8 +13,11 @@ It provides:
 * :func:`provenance_check` -- kept for compatibility; always passes (see warnings).
 * :func:`branch_year_from_attrs` -- decode ``branch_time_in_parent`` against the
   parent calendar with ``cftime``, returning year A plus parent run identifiers.
-* :func:`compute_baseline` -- piControl reference as the mean over the full
-  control run.
+* :func:`branch_window_reference` -- centred ``window``-yr piControl mean at the
+  branch year (trailing first ``window`` years when the branch is at piControl start).
+* :func:`compute_baseline` -- published piControl reference via
+  :func:`branch_window_reference` when the branch year lies in the staged control,
+  otherwise the full piControl mean.
 
 Dependencies: numpy, cftime, and the sibling :mod:`tipmip_gwl.mapping`.
 """
@@ -35,6 +38,7 @@ KNOWN_BRANCH_YEARS = {
     "GISS-E2-1-G-CC2": 2156,
     "IPSL-CM6-ESMCO2": 1850,
     "EC-Earth3-ESM-1": 1850,
+    "UKESM1-2-LL": 2277,  # manually patched; branched from piControl year 2277
 }
 
 
@@ -44,8 +48,8 @@ KNOWN_BRANCH_YEARS = {
 def provenance_warnings(attrs: dict, expect_experiment: str = "esm-up2p0") -> list[str]:
     """Non-fatal metadata issues on a ramp-up file.
 
-    With a full piControl mean baseline, these are warnings only — mapping
-    proceeds when a matching piControl file is available on disk.
+    Imperfect metadata is non-fatal — mapping proceeds when a matching piControl
+    file is available on disk.
     """
     warns = []
     experiment = str(attrs.get("experiment_id", "")).strip()
@@ -136,21 +140,19 @@ def resolve_branch_year(bi: BranchInfo, model: str, ru_years=None, pi_years=None
     ``ru_years`` is accepted for call-site compatibility but is not used as a
     fallback.
 
-    Under the full-run-mean baseline, the branch year itself is not needed to
-    compute the reference. This never raises: a missing or undecodable branch
-    year is reported as a *warning*, distinguishing (for traceability) whether
-    no parent was declared at all (``branch_method == 'no parent'`` and no
-    ``parent_source_id``/``parent_experiment_id``) versus a parent being
-    declared but the year specifically not decodable (e.g. a malformed
-    ``branch_time_in_parent``/``parent_time_units``). Either way the model
-    remains mappable; only the detrending anchor, the legacy window sensitivity
-    check, and the branch-year cross-check are unavailable for it. The sole
+    This never raises: a missing or undecodable branch year is reported as a
+    *warning*, distinguishing (for traceability) whether no parent was declared
+    at all (``branch_method == 'no parent'`` and no ``parent_source_id``/
+    ``parent_experiment_id``) versus a parent being declared but the year
+    specifically not decodable (e.g. a malformed ``branch_time_in_parent``/
+    ``parent_time_units``). Either way the model remains mappable and
+    :func:`compute_baseline` falls back to the full piControl mean. The sole
     hard requirement for mapping a model is having a piControl tas file to pair
     it with at all (enforced by the caller, not here).
 
     A branch year outside the staged piControl span is also a warning, not a
-    fatal error, for the same reason: the full-mean reference does not depend
-    on the branch year lying inside the control span.
+    fatal error: :func:`compute_baseline` falls back to the full piControl mean
+    in that case too (NorESM2-LM).
     """
     del ru_years  # kept for a stable signature; no ramp-up-start fallback
     warns = []
@@ -181,19 +183,19 @@ def resolve_branch_year(bi: BranchInfo, model: str, ru_years=None, pi_years=None
         if not (pi_lo <= branch <= pi_hi):
             warns.append(
                 f"branch year {branch} outside staged piControl span "
-                f"[{int(pi_lo)}-{int(pi_hi)}]; full-mean baseline uses the "
-                f"available control, but it does not cover the branch year"
+                f"[{int(pi_lo)}-{int(pi_hi)}]; baseline falls back to full "
+                f"piControl mean, which does not cover the branch year"
             )
     return branch, warns
 
 
-def legacy_window_reference(
+def branch_window_reference(
     pi_years,
     pi_gmsat,
     branch_year,
     window: int = 31,
 ) -> float:
-    """Former TIPMIP protocol baseline: centred ``window``-yr mean at branch year.
+    """Centred ``window``-yr piControl mean at the branch year.
 
     When the centred window would extend before piControl start (e.g. branch at
     parent day 0), use the first ``window`` years of piControl instead.
@@ -246,39 +248,60 @@ class Baseline:
     detrended: bool
 
 
-def compute_baseline(pi_years, pi_gmsat, branch_year=None, *, detrend=False) -> Baseline:
-    """piControl reference GMSAT as the mean over the full control run.
+def compute_baseline(
+    pi_years,
+    pi_gmsat,
+    branch_year=None,
+    *,
+    detrend=False,
+    window: int = 31,
+) -> Baseline:
+    """Published piControl reference GMSAT for the anomaly baseline.
 
-    The reference itself is delegated to :func:`tipmip_gwl.mapping.picontrol_reference`
-    so the pure-algorithm layer and this CMIP-aware layer never diverge; here we
-    add the drift diagnostic, span, and method label that go into the product.
+    Uses a ``window``-yr mean centred on ``branch_year`` when the branch year
+    is decodable and lies inside the staged piControl span; trailing first
+    ``window`` years when the centred window would start before piControl
+    (ACCESS-ESM1-5, EC-Earth3-ESM-1). Falls back to the full piControl mean
+    when ``branch_year`` is missing or outside the control span (NorESM2-LM).
+
+    Drift and span always refer to the full piControl record. When
+    ``detrend=True``, the full-run mean with linear detrend is used (requires
+    ``branch_year``).
     """
     if detrend and branch_year is None:
         raise ValueError("branch_year is required when detrend=True")
     yrs = np.asarray(pi_years, float)
     vals = np.asarray(pi_gmsat, float)
 
-    ref = mapping.picontrol_reference(yrs, vals, branch_year, detrend=detrend)
-
     finite = np.isfinite(yrs) & np.isfinite(vals)
-    sel = finite
     drift = mapping.picontrol_drift(yrs, vals)
+    pi_lo = float(yrs[finite].min()) if finite.any() else float("nan")
+    pi_hi = float(yrs[finite].max()) if finite.any() else float("nan")
 
-    # Distinct label when there is no branch year at all (parent declared, but
-    # the year specifically could not be decoded): the reference is identical,
-    # but this flags that the branch-year cross-check, detrending anchor, and
-    # legacy window sensitivity check are unavailable for this model.
-    method = "full_piControl_mean" if branch_year is not None else (
-        "full_piControl_mean_no_branch_year"
-    )
+    if detrend:
+        ref = mapping.picontrol_reference(yrs, vals, branch_year, detrend=True)
+        method = "full_piControl_mean_detrended"
+    elif branch_year is None:
+        ref = mapping.picontrol_reference(yrs, vals, branch_year, detrend=False)
+        method = "full_piControl_mean_no_branch_year"
+    elif not (pi_lo <= float(branch_year) <= pi_hi):
+        ref = mapping.picontrol_reference(yrs, vals, branch_year, detrend=False)
+        method = "full_piControl_mean"
+    else:
+        half = window // 2
+        trailing = (float(branch_year) - half) < pi_lo
+        ref = branch_window_reference(yrs, vals, branch_year, window=window)
+        method = (
+            "branch_window_31yr_trailing"
+            if trailing
+            else f"branch_window_{window}yr"
+        )
 
     return Baseline(
         reference=ref,
         method=method,
-        n_years=int(sel.sum()),
-        span=(float(yrs[sel].min()), float(yrs[sel].max()))
-        if sel.any()
-        else (np.nan, np.nan),
+        n_years=int(finite.sum()),
+        span=(pi_lo, pi_hi) if finite.any() else (np.nan, np.nan),
         drift_degC_per_century=drift["drift_degC_per_century"],
         detrended=detrend,
     )

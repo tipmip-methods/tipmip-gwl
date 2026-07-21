@@ -87,14 +87,45 @@ def read_attrs(path) -> dict:
     return attrs
 
 
-def _model_from_name(path: Path) -> str:
-    # tas_<table>_<model>_<exp>_<member>_<grid>_<suffix>.nc
-    return path.name.split("_")[2]
+def _model_from_name(path: Path) -> str | None:
+    # <var>_<table>_<model>_<exp>_<member>_<grid>_<suffix>.nc
+    parts = path.name.split("_")
+    if len(parts) < 5:
+        return None
+    return parts[2]
+
+
+def model_from_filename(path: str | Path) -> str | None:
+    """Extract the CMIP model token from a standard TIPMIP/CMIP filename."""
+    return _model_from_name(Path(path))
+
+
+def model_label(attrs: dict) -> str:
+    """Canonical model name for plots, tables, and grouping mapping products.
+
+    Prefer ``model_id`` (the filename token from ``discover``), then any staged
+    input filename attr (``rampup_file``, ``ze_file``, ``rampdown_file``), and
+    only fall back to ``source_id`` when neither is available. This keeps labels
+    consistent when CMIP ``source_id`` differs from the archive token (e.g.
+    UKESM1-2-LL vs eUKESM1-1-ice-N96ORCA1).
+    """
+    if attrs.get("model_id"):
+        return str(attrs["model_id"])
+    for key in ("rampup_file", "ze_file", "rampdown_file", "picontrol_file"):
+        token = model_from_filename(attrs.get(key, ""))
+        if token:
+            return token
+    return str(attrs.get("source_id", "unknown"))
 
 
 def discover(dir_path) -> dict:
     """Map model -> file for every *.nc in a directory."""
     out = {}
     for p in sorted(Path(dir_path).glob("*.nc")):
-        out[_model_from_name(p)] = p
+        if p.name.startswith("."):
+            continue
+        model = _model_from_name(p)
+        if model is None:
+            continue
+        out[model] = p
     return out

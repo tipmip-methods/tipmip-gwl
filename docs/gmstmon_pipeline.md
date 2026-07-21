@@ -1,6 +1,8 @@
 # GMSAT pipeline: from CMIP `tas` to `gmstmon`
 
 How we prepare **global-mean surface air temperature (GMSAT)** for TIPMIP analysis.
+This is the archive preprocessing stage of **Step 1 (anomaly computation)** in
+the mapping pipeline (see the package README).
 
 **Tool:** `tipmip-gwl-preprocess` + bundled path list `src/tipmip_gwl/data/tas_chunks.tsv`.
 

@@ -1,6 +1,7 @@
 """Investigate TIPMIP ramp-down GMSAT curves (esm-up2p0-gwl2p0-50y-dn2p0).
 
-Uses the same piControl baseline as tipmip-gwl (full-run mean). Ramp-down legs
+Uses the same piControl baseline as tipmip-gwl (31-yr branch window, inherited
+from the ramp-up mapping product when available). Ramp-down legs
 cool monotonically in calendar time, but they must *not* be remapped with the
 ramp-up ``year_of_gwl`` grid — same GWL on the way up and down is a different
 Earth-system state (see ``tipmip_gwl.mapping`` scope notes).
@@ -27,11 +28,6 @@ from tipmip_gwl.mapping import to_anomaly
 
 DEFAULT_DN = Path("/Users/jakobharteg/Desktop/tipmip/tas/esm-up2p0-gwl2p0-50y-dn2p0/gmstmon")
 DEFAULT_PI = Path("/Users/jakobharteg/Desktop/tipmip/tas/esm-piControl/gmstmon")
-
-
-def _model_label(path: Path) -> str:
-    with __import__("xarray").open_dataset(path, decode_times=False) as ds:
-        return str(ds.attrs.get("source_id", path.stem.split("_")[2]))
 
 
 def load_rampdown_series(
@@ -65,7 +61,7 @@ def load_rampdown_series(
 
         rows.append(
             {
-                "model": _model_label(dn_path),
+                "model": model,
                 "path": dn_path,
                 "years": dn_years,
                 "gmsat": dn_gmsat,

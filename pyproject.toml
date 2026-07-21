@@ -23,6 +23,8 @@ test = ["pytest"]
 [project.scripts]
 tipmip-gwl-diagnostics = "tipmip_gwl.diagnostics:main"
 tipmip-gwl-build = "tipmip_gwl.product:main"
+tipmip-gwl-build-rampdown = "tipmip_gwl.rampdown:main"
+tipmip-gwl-build-zehold = "tipmip_gwl.zehold:main"
 tipmip-gwl-preprocess = "tipmip_gwl.preprocess:main"
 
 [tool.setuptools.packages.find]

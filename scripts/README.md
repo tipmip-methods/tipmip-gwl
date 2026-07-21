@@ -44,6 +44,7 @@ tipmip-gwl-build --up2p0-dir ... --picontrol-dir ... --outdir mapping/
 | `pull_gmstmon_pik.sh` | PIK | Rsync `gmstmon/` from Levante to PIK scratch |
 | `pull_gmstmon_local.sh` | Laptop | Rsync `gmstmon/` from Levante to `~/Desktop/tipmip/tas/` |
 | `prepare_rampdown_merge.py` | Local | Build merge lists for `esm-up2p0-gwl2p0-50y-dn2p0` (+ NorESM swl id) |
+| `patch_ukesm_branch_attrs.py` | Local | Write CMIP branch metadata onto UKESM gmstmon files (see script docstring) |
 | `run_pull_gmstmon.slurm` | PIK | Slurm wrapper for the pull script |
 | `legacy/` | Levante | Superseded CDO merge pipeline (`merge_var.sh`, …) |
 

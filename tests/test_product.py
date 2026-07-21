@@ -52,9 +52,8 @@ def pi_control_file(tmp_path):
 
 def test_branch_year_outside_picontrol_span_still_maps(tmp_path, pi_control_file):
     # Mirrors NorESM2-LM: decoded branch year 1600 predates the staged control
-    # (1851-2100). Under the full-piControl-mean baseline this must map, not
-    # raise NotMappable, and the out-of-span condition should surface as a
-    # warning on the output dataset.
+    # (1851-2100). Mapping must proceed with a full-mean fallback baseline, and
+    # the out-of-span condition should surface as a warning on the output dataset.
     parent_units = "days since 0001-01-01"
     branch_year = 1600
     ru_path = tmp_path / "ru.nc"
@@ -135,3 +134,4 @@ def test_clean_model_maps_without_warnings(tmp_path, pi_control_file):
     out = build_mapping_dataset("CLEAN-ESM", ru_path, pi_control_file)
     assert "mapping_warnings" not in out.attrs
     assert int(out["branch_year"].values) == branch_year
+    assert out.attrs["baseline_method"] == "branch_window_31yr"

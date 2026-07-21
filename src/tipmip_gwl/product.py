@@ -71,8 +71,7 @@ def build_mapping_dataset(
     """Compute the full mapping for one model and return it as an xarray Dataset.
 
     Raises :class:`NotMappable` only when no piControl tas is available for the
-    model at all -- that is the sole hard requirement, since the full-mean
-    baseline does not depend on the branch year. Everything else -- wrong
+    model at all -- that is the sole hard requirement. Everything else -- wrong
     ``experiment_id``, no parent declared, a parent declared but its branch year
     specifically undecodable, or a branch year outside the staged piControl
     span -- is recorded as a warning on the output dataset instead of blocking
@@ -101,7 +100,7 @@ def build_mapping_dataset(
     warns.extend(branch_warns)
 
     base = bl.compute_baseline(
-        pi_years, pi_gmsat, branch, detrend=detrend,
+        pi_years, pi_gmsat, branch, detrend=detrend, window=window,
     )
     cfg = mapping.MappingConfig(
         window=window, method="running_mean", detrend_pi=detrend, T_grid=t_grid
@@ -202,8 +201,8 @@ def build_mapping_dataset(
                     "long_name": "piControl calendar year the ramp-up branched from",
                     "units": "year",
                     "comment": "NaN when the branch year could not be decoded "
-                    "(baseline_method ends in '_no_branch_year'); the full-mean "
-                    "baseline does not require it.",
+                    "(baseline_method ends in '_no_branch_year'); falls back to "
+                    "the full piControl mean.",
                 },
             ),
             "max_gwl_reached": (
@@ -246,6 +245,7 @@ def build_mapping_dataset(
             "See baseline_method and tipmip-gwl documentation."
         ),
         "source_id": str(ru_attrs.get("source_id", model)),
+        "model_id": str(model),
         "experiment_id": str(ru_attrs.get("experiment_id", "esm-up2p0")),
         "variant_label": str(ru_attrs.get("variant_label", "")),
         "grid_label": str(ru_attrs.get("grid_label", "")),
@@ -272,21 +272,44 @@ def build_mapping_dataset(
     return ds
 
 
+def load_rampup_baseline(mapping_dir, model) -> tuple[float, str] | None:
+    """Return ``(baseline_gmsat, baseline_method)`` from a ramp-up mapping product.
+
+    Looks in ``mapping_dir`` for a ``gwlmap_*`` file whose ``model_id`` matches
+    ``model`` and whose ``leg`` attribute is ``ramp-up``. Returns ``None`` when
+    no ramp-up product is found (callers fall back to computing a baseline).
+    """
+    mapping_dir = Path(mapping_dir)
+    for path in sorted(mapping_dir.glob("gwlmap_*.nc")):
+        with xr.open_dataset(path) as ds:
+            if str(ds.attrs.get("leg", "ramp-up")) != "ramp-up":
+                continue
+            mid = str(ds.attrs.get("model_id") or ds.attrs.get("source_id", ""))
+            if mid != model:
+                continue
+            return float(ds["baseline_gmsat"].values), str(
+                ds.attrs.get("baseline_method", "")
+            )
+    return None
+
+
 def write_mapping(ds: xr.Dataset, outdir, filename: str | None = None) -> Path:
     """Write a mapping dataset to NetCDF, returning the path."""
     outdir = Path(outdir)
     outdir.mkdir(parents=True, exist_ok=True)
     if filename is None:
-        sid = ds.attrs.get("source_id", "model")
+        mid = ds.attrs.get("model_id") or ds.attrs.get("source_id", "model")
         ver = ds.attrs.get("mapping_version", "v1")
-        filename = f"gwlmap_{sid}_esm-up2p0_{ver}.nc"
+        filename = f"gwlmap_{mid}_esm-up2p0_{ver}.nc"
     path = outdir / filename
     ds.to_netcdf(path)
     return path
 
 
 def _year_of_gwl_target(
-    mapping_ds: xr.Dataset, gwl_step: float = 0.1, gwl_max: float = 4.0
+    mapping_ds: xr.Dataset,
+    gwl_step: float = mapping.GWL_GRID_STEP,
+    gwl_max: float = 4.0,
 ) -> xr.DataArray:
     """Fractional model year at each GWL on the requested grid (for ``remap_to_gwl``)."""
     grid = gwl_grid(gwl_step, gwl_max)
@@ -302,7 +325,12 @@ def _year_of_gwl_target(
 
 
 def remap_to_gwl(
-    mapping_ds, data, year_dim="year", *, gwl_step: float = 0.1, gwl_max: float = 4.0
+    mapping_ds,
+    data,
+    year_dim="year",
+    *,
+    gwl_step: float = mapping.GWL_GRID_STEP,
+    gwl_max: float = 4.0,
 ):
     """Remap a diagnostic from calendar time onto the common GWL grid.
 
@@ -324,7 +352,7 @@ def remap_to_gwl(
     year_dim : str
         Name of the annual coordinate on ``data`` (default ``"year"``).
     gwl_step : float
-        GWL grid spacing in degC (default ``0.1``).
+        GWL grid spacing in degC (default ``0.02``).
     gwl_max : float
         Upper end of the GWL grid in degC (default ``4.0``).
 

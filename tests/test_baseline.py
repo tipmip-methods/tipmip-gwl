@@ -7,6 +7,7 @@ from tipmip_gwl.baseline import (
     BranchInfo,
     branch_year_from_attrs,
     compute_baseline,
+    branch_window_reference,
     provenance_warnings,
     resolve_branch_year,
 )
@@ -66,9 +67,8 @@ def test_resolve_branch_year_warns_when_parent_declared_but_year_undecodable():
 
 
 def test_resolve_branch_year_out_of_span_warns_not_raises():
-    # Regression test: under the full-piControl-mean baseline, a branch year
-    # outside the staged control span (e.g. NorESM2-LM: branch 1600, control
-    # 1851-2100) must NOT block mapping -- it is a warning only.
+    # NorESM2-LM: branch 1600, control 1851-2100. Must warn and fall back to
+    # full piControl mean at compute_baseline time, not raise here.
     bi = BranchInfo(year=1600)
     pi_years = np.arange(1851, 2101)
     branch, warns = resolve_branch_year(bi, "NorESM2-LM", pi_years=pi_years)
@@ -108,17 +108,36 @@ def test_provenance_warnings_clean_attrs_pass():
     assert provenance_warnings(attrs) == []
 
 
-def test_compute_baseline_matches_mapping_picontrol_reference():
-    years = np.arange(0, 500)
-    rng = np.random.default_rng(0)
-    vals = 286.5 + 0.05 * rng.standard_normal(years.size)
-    base = compute_baseline(years, vals, branch_year=2050)
+def test_compute_baseline_uses_branch_window_when_in_span():
+    years = np.arange(1850, 2101)
+    vals = 286.5 + 0.001 * (years - years.mean())
+    branch = 1950
+    base = compute_baseline(years, vals, branch_year=branch)
+    assert base.method == "branch_window_31yr"
+    assert base.reference == pytest.approx(
+        branch_window_reference(years, vals, branch), abs=1e-9
+    )
+    assert base.reference != pytest.approx(
+        picontrol_reference(years, vals, branch_year=None), abs=1e-6
+    )
+
+
+def test_compute_baseline_trailing_window_at_picontrol_start():
+    years = np.arange(271, 771)
+    vals = np.full(years.size, 287.7)
+    base = compute_baseline(years, vals, branch_year=271)
+    assert base.method == "branch_window_31yr_trailing"
+    assert base.reference == pytest.approx(287.7, abs=1e-9)
+
+
+def test_compute_baseline_out_of_span_uses_full_mean():
+    years = np.arange(1851, 2101)
+    vals = np.full(years.size, 287.6)
+    base = compute_baseline(years, vals, branch_year=1600)
     assert base.method == "full_piControl_mean"
     assert base.reference == pytest.approx(
         picontrol_reference(years, vals, branch_year=None), abs=1e-9
     )
-    assert base.n_years == years.size
-    assert base.detrended is False
 
 
 def test_compute_baseline_flags_missing_branch_year():

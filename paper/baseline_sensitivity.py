@@ -1,9 +1,10 @@
 """
-Compare full piControl mean vs the legacy 31-yr centred window at branch year.
+Compare full piControl mean vs the published 31-yr branch-window baseline.
 
-Reproduces the baseline sensitivity table used to justify switching to the
-full-run mean: drift is small and |ref_full - ref_window| is at most ~0.09 K
-for models with a decodable branch year inside piControl.
+Reproduces the baseline sensitivity table: drift is small and
+|full piControl mean − 31-yr branch window| is at most ~0.09 K for models with
+a decodable branch year inside piControl. The published baseline is now the
+window mean; this script keeps the full-vs-window comparison for robustness.
 
 Usage::
 
@@ -22,10 +23,10 @@ from tipmip_gwl.baseline import (
     branch_year_from_attrs,
     compute_baseline,
     discover_mappable_models,
-    legacy_window_reference,
     resolve_branch_year,
 )
 from tipmip_gwl.io import load_gmsat_nc, read_attrs
+from tipmip_gwl.mapping import picontrol_reference
 
 DEFAULT_OUT_CSV = Path(__file__).resolve().parent / "tables" / "baseline_sensitivity.csv"
 
@@ -41,26 +42,25 @@ def main(up2p0_dir, picontrol_dir, window=31, out_csv=None):
             continue  # no branch year decoded (e.g. no parent declared): can't
             # centre a window; the full-mean baseline doesn't need it either
         if not (pi_years.min() <= branch <= pi_years.max()):
-            continue  # branch predates the entire staged control (e.g.
-            # NorESM2-LM): legacy_window_reference would silently fall back to
-            # the control's first `window` years, which isn't a true centred
-            # window and would misrepresent this as "tested"
-        try:
-            win_ref = legacy_window_reference(pi_years, pi_gmsat, branch, window=window)
-        except ValueError:
             continue
-        full = compute_baseline(pi_years, pi_gmsat, branch)
+        published = compute_baseline(
+            pi_years, pi_gmsat, branch, window=window,
+        )
+        if not published.method.startswith("branch_window"):
+            continue
+        win_ref = published.reference
+        ref_full = picontrol_reference(pi_years, pi_gmsat, branch)
         span_yr = float(pi_years.max() - pi_years.min())
-        drift = full.drift_degC_per_century
+        drift = published.drift_degC_per_century
         total = drift * span_yr / 100.0
         rows.append(
             (
                 model,
                 drift,
                 total,
-                full.reference,
+                ref_full,
                 win_ref,
-                abs(full.reference - win_ref),
+                abs(ref_full - win_ref),
             )
         )
 
@@ -94,7 +94,7 @@ def main(up2p0_dir, picontrol_dir, window=31, out_csv=None):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Full piControl mean vs legacy 31-yr window baseline sensitivity."
+        description="Full piControl mean vs 31-yr branch-window baseline sensitivity."
     )
     parser.add_argument("--up2p0-dir", required=True)
     parser.add_argument("--picontrol-dir", required=True)
@@ -102,7 +102,7 @@ if __name__ == "__main__":
         "--window",
         type=int,
         default=31,
-        help="legacy centred window width (years)",
+        help="branch-window width (years)",
     )
     parser.add_argument("--out-csv", default=str(DEFAULT_OUT_CSV))
     args = parser.parse_args()

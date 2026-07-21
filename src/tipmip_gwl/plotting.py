@@ -18,6 +18,46 @@ import numpy as np
 GWL_PLOT_LO = 0.0
 GWL_PLOT_HI = 4.0
 GWL_YLIM = (-0.2, 4.2)
+BRANCH_WINDOW = 31
+
+
+def _branch_window_pi(pi_years, pi_gmsat, branch_year, *, window: int = BRANCH_WINDOW):
+    """Return (window_mean, win_lo, win_hi, note) for piControl baseline panels.
+
+    Uses the same rules as :func:`tipmip_gwl.baseline.branch_window_reference`:
+    centred ``window`` at ``branch_year``, trailing first ``window`` years when
+    the centred window would start before piControl (ACCESS-ESM1-5). Returns
+    ``(nan, nan, nan, note)`` when the branch year is missing or outside the
+    staged piControl span (NorESM2-LM).
+    """
+    from .baseline import branch_window_reference
+
+    if branch_year is None or not np.isfinite(branch_year):
+        return np.nan, np.nan, np.nan, "no branch year"
+
+    yrs = np.asarray(pi_years, float)
+    vals = np.asarray(pi_gmsat, float)
+    pi_lo, pi_hi = float(yrs.min()), float(yrs.max())
+    branch = float(branch_year)
+
+    if not (pi_lo <= branch <= pi_hi):
+        return np.nan, np.nan, np.nan, "branch year out of range"
+
+    half = window // 2
+    lo, hi = branch - half, branch + half
+    trailing = lo < pi_lo
+    if trailing:
+        win_lo, win_hi = pi_lo, pi_lo + window - 1
+    else:
+        win_lo, win_hi = lo, hi
+
+    try:
+        ref = branch_window_reference(yrs, vals, branch, window=window)
+    except ValueError:
+        return np.nan, np.nan, np.nan, "31-yr window unavailable"
+
+    note = "trailing 31-yr" if trailing else None
+    return ref, win_lo, win_hi, note
 
 
 def _trim_to_gwl_window(t, *series, lo=GWL_PLOT_LO, hi=GWL_PLOT_HI):
@@ -39,9 +79,9 @@ def plot_diagnostics(diags, outdir):
     rampup_anomaly.png   -- ramp-up GWL vs years-since-start (0--4 degC window),
         all models overlaid (thin = annual anomaly, thick = monotone axis).
     picontrol_baseline.png -- one panel per model: piControl GMSAT with the
-        full-run baseline (blue line) marked; model name in the panel corner.
-        No branch-year marker -- the full-mean baseline does not depend on it
-        (see the baseline sensitivity comparison figure instead).
+        published 31-yr branch-window baseline (solid), full-run mean (dashed),
+        branch year (vertical line), and shaded reference window; NorESM2-LM
+        omits the window when the branch year lies outside staged piControl.
     """
     import matplotlib
 
@@ -91,7 +131,11 @@ def plot_diagnostics(diags, outdir):
     # --- Figure B: piControl panels -------------------------------------------
     pmodels = [d for d in diags if d.pi_years is not None]
     if pmodels:
+        from matplotlib.lines import Line2D
         from matplotlib.ticker import MaxNLocator
+
+        full_color = plt.cm.tab10.colors[0]
+        window_color = plt.cm.tab10.colors[1]
 
         ncol = 4
         nrow = int(np.ceil(len(pmodels) / ncol))
@@ -104,11 +148,32 @@ def plot_diagnostics(diags, outdir):
         except Exception:
             y_min, y_max = None, None
 
-        figB, axes = plt.subplots(nrow, ncol, figsize=(12, 2.10 * nrow), sharey=True)
+        figB, axes = plt.subplots(nrow, ncol, figsize=(12, 2.35 * nrow), sharey=True)
 
         for ax_idx, (ax, d) in enumerate(zip(axes.flat, pmodels)):
             ax.plot(d.pi_years, d.pi_gmsat, color="k", lw=0.8)
-            ax.axhline(d.pi_reference, color=plt.cm.tab10.colors[0], lw=1.2)
+
+            win_ref, win_lo, win_hi, win_note = _branch_window_pi(
+                d.pi_years, d.pi_gmsat, d.branch_used
+            )
+            published_ref = d.pi_reference
+            full_ref = d.pi_reference_full
+            uses_window = d.baseline_method.startswith("branch_window")
+
+            if np.isfinite(win_lo) and np.isfinite(win_hi):
+                ax.axvspan(win_lo, win_hi, color=window_color, alpha=0.12, lw=0)
+            if uses_window and np.isfinite(published_ref):
+                ax.axhline(published_ref, color=window_color, lw=1.4)
+            if d.branch_used is not None and np.isfinite(d.branch_used):
+                ax.axvline(
+                    d.branch_used,
+                    color="0.35",
+                    ls=":",
+                    lw=0.9,
+                )
+
+            ax.axhline(full_ref, color=full_color, lw=1.0, ls="--", alpha=0.85)
+
             y_pos = 0.94 if "IPSL" in str(d.model) else 0.06
             va = "top" if "IPSL" in str(d.model) else "bottom"
             ax.text(
@@ -121,28 +186,76 @@ def plot_diagnostics(diags, outdir):
                 fontsize=8,
             )
 
-            # Plot d.pi_reference in the lower left of each model panel
-            ax.text(
-                0.03,
-                y_pos,
-                f"{d.pi_reference:.2f}$\degree$C",
-                transform=ax.transAxes,
-                ha="left",
-                va=va,
-                fontsize=8,
-                color=plt.cm.tab10.colors[0],
-                bbox=dict(facecolor="white", edgecolor="none", alpha=0.6, pad=0.2),
-            )
+            if uses_window and np.isfinite(published_ref):
+                if d.baseline_method == "branch_window_31yr_trailing":
+                    label = f"{published_ref:.2f} K (trailing 31-yr)"
+                else:
+                    label = f"{published_ref:.2f} K (31-yr)"
+                ax.text(
+                    0.03,
+                    y_pos,
+                    label,
+                    transform=ax.transAxes,
+                    ha="left",
+                    va=va,
+                    fontsize=7.5,
+                    color=window_color,
+                    bbox=dict(facecolor="white", edgecolor="none", alpha=0.6, pad=0.2),
+                )
+                ax.text(
+                    0.03,
+                    y_pos + (0.10 if va == "bottom" else -0.10),
+                    f"{full_ref:.2f} K (full mean)",
+                    transform=ax.transAxes,
+                    ha="left",
+                    va=va,
+                    fontsize=7,
+                    color=full_color,
+                    bbox=dict(facecolor="white", edgecolor="none", alpha=0.6, pad=0.2),
+                )
+            elif win_note:
+                ax.text(
+                    0.03,
+                    y_pos,
+                    win_note,
+                    transform=ax.transAxes,
+                    ha="left",
+                    va=va,
+                    fontsize=7.5,
+                    color=window_color,
+                    bbox=dict(facecolor="white", edgecolor="none", alpha=0.6, pad=0.2),
+                )
+                ax.text(
+                    0.03,
+                    y_pos + (0.10 if va == "bottom" else -0.10),
+                    f"{full_ref:.2f} K (full mean)",
+                    transform=ax.transAxes,
+                    ha="left",
+                    va=va,
+                    fontsize=7,
+                    color=full_color,
+                    bbox=dict(facecolor="white", edgecolor="none", alpha=0.6, pad=0.2),
+                )
+
+            if d.branch_used is not None and np.isfinite(d.branch_used):
+                ax.text(
+                    0.97,
+                    y_pos + (0.10 if va == "bottom" else -0.10),
+                    f"branch {int(d.branch_used)}",
+                    transform=ax.transAxes,
+                    ha="right",
+                    va=va,
+                    fontsize=7,
+                    color="0.35",
+                )
 
             ax.yaxis.set_major_locator(MaxNLocator(4))
-            # ax.tick_params(labelsize=7)
             if y_min is not None and y_max is not None:
                 ax.set_ylim(y_min, y_max)
 
-            # Only bottom left plot gets y/x label
             row, col = divmod(ax_idx, ncol)
             if row == nrow - 1 and col == 0:
-                ax.set_ylabel(r"GMSAT ($\degree$C)")
+                ax.set_ylabel(r"GMSAT (K)")
                 ax.set_xlabel("Model year")
             else:
                 ax.set_ylabel("")
@@ -154,9 +267,30 @@ def plot_diagnostics(diags, outdir):
             ax.set_visible(False)
 
         figB.subplots_adjust(
-            left=0.045, right=0.995, top=0.993, bottom=0.10, wspace=0.06, hspace=0.18
+            left=0.045, right=0.995, top=0.993, bottom=0.14, wspace=0.06, hspace=0.18
         )
-        # Do NOT call figB.legend()
+        figB.legend(
+            handles=[
+                Line2D(
+                    [0], [0], color=window_color, lw=1.4, label="31-yr branch window"
+                ),
+                Line2D(
+                    [0],
+                    [0],
+                    color=full_color,
+                    lw=1.0,
+                    ls="--",
+                    label="Full piControl mean",
+                ),
+                Line2D([0], [0], color="0.35", ls=":", lw=0.9, label="Branch year"),
+            ],
+            loc="upper center",
+            bbox_to_anchor=(0.5, 0.05),
+            ncol=3,
+            frameon=False,
+            columnspacing=1.2,
+            handlelength=1.8,
+        )
 
         pathB = outdir / "picontrol_baseline.png"
         figB.savefig(pathB, dpi=300, bbox_inches="tight")

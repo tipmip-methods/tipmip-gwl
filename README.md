@@ -2,9 +2,13 @@
 
 Re-index TIPMIP ramp-up output from a **time** axis onto a common **global warming level (GWL)** axis.
 
-1. Weighted annual-mean GMSAT for ramp-up and piControl
-2. Full piControl mean as the anomaly baseline
-3. Anomaly → smooth → enforce monotonicity → invert onto a common T-grid
+The mapping pipeline has three steps, applied identically to every model:
+
+1. **Anomaly computation** — weighted annual-mean GMSAT, 31-yr branch-window piControl baseline (full mean when branch metadata is missing or out of span), warming anomaly
+2. **Smoothing and monotonicity** — 31-year centred running mean, then isotonic (PAVA) regression
+3. **Inversion and resampling** — relabel at native resolution or resample onto a common GWL grid
+
+Archive preprocessing (`tipmip-gwl-preprocess`) builds monthly `gmstmon` from raw `tas`; the days-in-month-weighted annual mean is applied on read (Step 1).
 
 ```bash
 pip install -e ".[plot]"
@@ -18,13 +22,13 @@ tipmip-gwl-diagnostics --up2p0-dir <dir> --picontrol-dir <dir> --plot --plotdir 
 # the data product: one mapping .nc per mappable model
 tipmip-gwl-build --up2p0-dir <dir> --picontrol-dir <dir> --outdir mapping/
 
-# baseline sensitivity: full piControl mean vs legacy 31-yr window at branch year
-python examples/baseline_sensitivity.py --up2p0-dir <dir> --picontrol-dir <dir>
+# baseline sensitivity: full piControl mean vs 31-yr branch window
+python paper/baseline_sensitivity.py --up2p0-dir <dir> --picontrol-dir <dir>
 ```
 
-The baseline uses the **full piControl mean** (not a centred window at branch year).
-For the five mappable TIPMIP models, piControl drift is well below 0.5 °C/cy and
-|ref_full − ref_window| is at most ~0.09 K — see `examples/baseline_sensitivity.py`.
+The baseline is the **31-yr mean centred on the branch year** (trailing first 31 years when the branch is at piControl start). Models with missing or out-of-span branch years fall back to the **full piControl mean** (NorESM2-LM).
+For the eight staged TIPMIP models, piControl drift is well below 0.5 °C/cy and
+|full mean − branch window| is at most ~0.09 K — see `paper/baseline_sensitivity.py`.
 
 ## Data product
 
@@ -32,7 +36,7 @@ The deliverable is one NetCDF file per model (`gwlmap_<model>_esm-up2p0_<version
 holding the coordinate transform, not remapped variables — users apply the axis
 to their own diagnostic variable.
 
-- `year_of_gwl(gwl)` — model year at each GWL on the common 0–4 °C grid (NaN beyond range).
+- `year_of_gwl(gwl)` — model year at each GWL on the common 0–4 °C grid in 0.02 °C steps (NaN beyond range).
 - `gwl_axis(year)` — forward GWL(t): the monotone axis that was inverted.
 - `gmsat_anomaly(year)`, `gmsat_anomaly_smoothed(year)` — the (un)smoothed anomaly.
 - Scalar diagnostics: `baseline_gmsat`, `branch_year`, `picontrol_drift`,
@@ -41,13 +45,13 @@ to their own diagnostic variable.
   `mapping_version` — so a downstream analysis can pin one exact axis.
 
 A model is skipped (not written) only when it has no matching piControl tas on
-disk — that is the sole hard requirement, since the full-mean baseline does not
-depend on the branch year. Everything else — wrong ``experiment_id``, no parent
-declared, a parent declared but its branch year specifically undecodable, or a
-branch year outside the staged piControl span — is recorded as a warning
-instead: the model is still mapped, with `baseline_method` set to
-`full_piControl_mean_no_branch_year` and `branch_year` left `NaN` when no year
-could be decoded at all.
+disk — that is the sole hard requirement. Everything else — wrong ``experiment_id``,
+no parent declared, a parent declared but its branch year specifically undecodable,
+or a branch year outside the staged piControl span — is recorded as a warning
+instead: the model is still mapped, with ``baseline_method`` set to
+``full_piControl_mean_no_branch_year`` (missing branch year) or
+``full_piControl_mean`` (branch year out of span) and ``branch_year`` left ``NaN``
+when no year could be decoded at all.
 
 ### Using a mapping file
 
@@ -55,7 +59,7 @@ There are two GWL transforms, depending on whether you want a **shared** axis or
 each model's **own** axis:
 
 1. **`remap_to_gwl`** — resample a diagnostic onto the common 0–4 °C grid
-   (0.1 °C steps, shared across models). Uses the inverse `year_of_gwl(gwl)`.
+   (0.02 °C steps, shared across models). Uses the inverse `year_of_gwl(gwl)`.
    Use this to **stack/compare models** at the same warming level.
 2. **`relabel_to_gwl`** — relabel a model's *native* time axis with continuous
    GWL (its own, uneven, unbinned). Uses the forward `gwl_axis(year)`. Use this
@@ -165,8 +169,8 @@ on_gwl = remap_export_to_gwl(
 
 Alignment is by calendar-year *value*. If your export already carries calendar
 years on its time coordinate, omit `export_start_year`. The bin grid is set by
-``gwl_step`` (default ``0.1`` degC) and ``gwl_max`` (default ``4.0``); it does
-not have to match the 0.1 degC grid stored in the mapping file. Use the same
+``gwl_step`` (default ``0.02`` degC) and ``gwl_max`` (default ``4.0``); it does
+not have to match the 0.02 degC grid stored in the mapping file. Use the same
 ``gwl_step`` for all models in one MMA run. ``temporal_tolerance`` in MMA is in
 bin index units, so finer bins mean a narrower physical window.
 
@@ -200,9 +204,10 @@ into `paper/tables/`. Each step is also a standalone script with the same
 
 ```
 src/tipmip_gwl/
-├── mapping.py       Pure numpy/scipy algorithm: baseline → anomaly → monotone
-│                    temperature axis → invert → resample. Works on plain
-│                    (years, values) arrays; no file-format knowledge.
+├── mapping.py       Pure numpy/scipy algorithm (paper Steps 1–3): anomaly
+│                    computation → smoothing and monotonicity → inversion and
+│                    resampling. Works on plain (years, values) arrays; no
+│                    file-format knowledge.
 ├── io.py            Read global-mean tas NetCDF (days-in-month weighted annual
 │                    mean) and discover model files in a directory.
 ├── baseline.py      Establish each model's anomaly zero point: TIPMIP
@@ -227,9 +232,9 @@ examples/                 (generic, not paper-specific)
 paper/                     (one script per figure/table; build_all.py runs all)
 ├── build_all.py                Orchestrator: rebuilds mapping/, then every figure/table.
 ├── figures_1_2.py               Figures 1-2: ramp-up GWL overlay; piControl + baseline.
-├── mean_tas_piControl.py        Figure 3: full-mean vs 31-yr-window piControl reference.
+├── mean_tas_piControl.py        Figure 3: branch-window vs full-mean piControl reference.
 ├── diagnostic_remap_demo.py     Figure 4: mixed-layer depth remapped onto the GWL axis.
-├── baseline_sensitivity.py      Table: full vs legacy-window baseline (backs Figure 3).
+├── baseline_sensitivity.py      Table: full vs branch-window baseline (backs Figure 3).
 ├── window_sensitivity.py        Table: 21/31/41-yr smoothing-window robustness check.
 └── table1.py                    Table 1 (SI): per-model baseline + robustness diagnostics.
 ```

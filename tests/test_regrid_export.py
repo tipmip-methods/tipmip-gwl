@@ -4,7 +4,12 @@ import numpy as np
 import pytest
 import xarray as xr
 
-from tipmip_gwl.regrid_export import _reduce_block, remap_export_to_gwl
+from tipmip_gwl.regrid_export import (
+    _reduce_block,
+    bin_export_to_gwl,
+    export_on_continuous_gwl,
+    remap_export_to_gwl,
+)
 
 
 class TestReduceBlock:
@@ -107,3 +112,22 @@ def test_remap_export_to_gwl_dataset_input_picks_cluster_var():
     out = remap_export_to_gwl(ds, mapping, gwl_step=0.1, gwl_max=2.0)
     assert isinstance(out, xr.Dataset)
     assert "cluster" in out.data_vars
+
+
+def test_bin_export_to_gwl_from_continuous_gwl_axis():
+    labels = np.full((50, 1), -1.0)
+    labels[25, 0] = 3.0
+    gwl = np.linspace(0.0, 2.0, 50)
+    da = xr.DataArray(
+        labels,
+        dims=("time", "hp_pixel"),
+        coords={
+            "time": ("time", gwl, {"units": "degC", "long_name": "global warming level"}),
+            "hp_pixel": [0],
+        },
+        name="cluster",
+    )
+    assert export_on_continuous_gwl(da)
+    out = bin_export_to_gwl(da, gwl_step=0.1, gwl_max=2.0)
+    idx_near_1 = np.argmin(np.abs(out["gwl"].values - 1.0))
+    assert out.values[idx_near_1, 0] == 3.0

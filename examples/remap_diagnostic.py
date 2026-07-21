@@ -30,11 +30,12 @@ import numpy as np
 import xarray as xr
 
 from tipmip_gwl import remap_to_gwl
+from tipmip_gwl.io import model_label
 
 
 def main(mapping_path):
     mp = xr.open_dataset(mapping_path)
-    model = mp.attrs.get("source_id", "model")
+    model = model_label(dict(mp.attrs))
     ru_years = mp["year"].values
 
     # A stand-in annual diagnostic. NOTE the year range is intentionally offset

@@ -11,13 +11,28 @@ on plain (years, values) arrays. The TIPMIP/NetCDF-specific glue lives in
 
 Scope / assumptions
 -------------------
-* Designed for the *ramp-up* leg (esm-up2p0). On a single monotonic warming
-  path, temperature-matching is well posed. Do NOT reuse the resulting axis to
-  equate a ramp-up state with a ramp-down state at the same GWL: same GWL on
+* Works on a single monotonic leg at a time: the *ramp-up* (esm-up2p0,
+  ``direction="increasing"``, the default) or the *ramp-down*
+  (esm-up2p0-*-dn2p0, ``direction="decreasing"``). On a single monotonic path,
+  temperature-matching is well posed. Do NOT reuse either leg's axis to equate
+  its state with the *other* leg's state at the same GWL: same GWL on
   different paths is a different Earth-system state. That path-dependence is a
   science target, not a nuisance to interpolate away.
+* Do not run this across a combined up+hold+down trajectory either: GWL is not
+  monotonic over that full span (up, then flat, then down), so no single
+  ``direction`` fits it. The zero-emission hold leg needs no monotone axis at
+  all (see the paper draft); build each leg's mapping independently.
 * Baseline (the zero of the anomaly) is the mean of the model's OWN piControl
   GMSAT over the full control run.
+
+Pipeline (paper Steps 1–3)
+--------------------------
+1. **Anomaly computation** — :func:`picontrol_reference`, :func:`to_anomaly`;
+   GMSAT I/O in :mod:`tipmip_gwl.io` and :mod:`tipmip_gwl.preprocess`.
+2. **Smoothing and monotonicity** — :func:`axis_variable`,
+   :func:`monotonicity_report`.
+3. **Inversion and resampling** — :func:`invert_to_grid`,
+   :func:`resample_variable`; product wrappers in :mod:`tipmip_gwl.product`.
 
 Dependencies: numpy, scipy.
 """
@@ -112,8 +127,17 @@ def picontrol_drift(pi_years, pi_gmsat):
 # ---------------------------------------------------------------------------
 # Monotone axis variable T~(t)
 # ---------------------------------------------------------------------------
-def _running_mean(years, values, window):
-    """Centred running mean on a (assumed) 1-year cadence. Edges shrink window."""
+def running_mean(years, values, window):
+    """Centred running mean on a (assumed) 1-year cadence. Edges shrink window.
+
+    Public on its own (not only reachable via :func:`axis_variable`) because
+    the zero-emission-hold leg wants smoothing WITHOUT the monotonicity step:
+    its trajectory can genuinely wander during the hold, and that wander is
+    the signal, not noise to force away. A short hold (e.g. 50 years) is also
+    a poor match for a 31-year window -- most of the record sits in the
+    edge-shrunk regime below -- so callers on that leg typically pass a
+    shorter window than the ramp-up/ramp-down legs use.
+    """
     half = window // 2
     out = np.full_like(values, np.nan, dtype=float)
     for i in range(len(values)):
@@ -123,8 +147,13 @@ def _running_mean(years, values, window):
     return out
 
 
+_running_mean = running_mean  # internal alias, kept for in-module call sites
+
+
 def _pava_isotonic(y):
     """Pool-adjacent-violators isotonic (non-decreasing) regression.
+    Standard PAVA algorithm (Ayer et al., 1955; Barlow et al., 1972).
+
 
     Minimal dependency-free implementation. Returns a monotone-increasing
     fit to y of the same length.
@@ -151,9 +180,14 @@ def _pava_isotonic(y):
 
 
 def axis_variable(
-    years, anom, method="running_mean", window=31, return_intermediate=False
+    years,
+    anom,
+    method="running_mean",
+    window=31,
+    return_intermediate=False,
+    direction="increasing",
 ):
-    """Build a monotone-increasing temperature axis T~(t) from the anomaly.
+    """Build a monotone temperature axis T~(t) from the anomaly.
 
     method:
       'running_mean'   : 31-yr centred mean, then enforce monotonicity by
@@ -164,19 +198,38 @@ def axis_variable(
                          transient shape.
       'cummax'         : running mean then cumulative max (crude, unambiguous).
 
-    Returns T~ (monotone non-decreasing). If return_intermediate, also returns
-    the pre-monotonization series, so callers can isolate how much the
-    monotonization step (not the smoothing) actually changed.
+    direction:
+      'increasing' (default) : ramp-up leg, GMSAT is warming; T~ is monotone
+                         non-decreasing.
+      'decreasing'    : ramp-down leg, GMSAT is cooling; T~ is monotone
+                         non-increasing. Implemented by negating the series,
+                         applying the same increasing-case logic, and negating
+                         back, so the two directions share one PAVA/cummax
+                         implementation.
+
+    Only applies the monotonic fix *within* one leg's own anomaly series.
+    Do not run this across a full up+hold+down trajectory: GWL is not
+    monotonic over that combined span (it rises, plateaus, then falls), and
+    forcing it to be would erase the very hysteresis/path-dependence the
+    ramp-down leg exists to preserve.
+
+    Returns T~ (monotone in the requested direction). If return_intermediate,
+    also returns the pre-monotonization series, so callers can isolate how
+    much the monotonization step (not the smoothing) actually changed.
     """
+    if direction not in ("increasing", "decreasing"):
+        raise ValueError(f"Unknown direction '{direction}'.")
+    sign = 1.0 if direction == "increasing" else -1.0
+
     if method == "running_mean":
         pre = _running_mean(years, anom, window)
-        T = _pava_isotonic(pre)
+        T = sign * _pava_isotonic(sign * pre)
     elif method == "monotone_spline":
         pre = anom.copy()
-        T = _pava_isotonic(anom)
+        T = sign * _pava_isotonic(sign * anom)
     elif method == "cummax":
         pre = _running_mean(years, anom, window)
-        T = np.maximum.accumulate(pre)
+        T = sign * np.maximum.accumulate(sign * pre)
     else:
         raise ValueError(f"Unknown method '{method}'.")
     return (T, pre) if return_intermediate else T
@@ -207,22 +260,31 @@ def monotonicity_report(anom_raw, T_pre, T_axis):
 # ---------------------------------------------------------------------------
 # Inversion t(T) and resampling onto a common grid
 # ---------------------------------------------------------------------------
-def invert_to_grid(years, T_axis, T_grid):
+def invert_to_grid(years, T_axis, T_grid, direction="increasing"):
     """Invert T~(t) to t(T) on a common temperature grid.
 
-    T_axis must be monotone non-decreasing. Strictly increasing is required for
-    a unique inverse; ties (flat segments) are nudged by a tiny epsilon so the
-    interpolator is well defined. Values of T_grid outside the model's realized
-    range return NaN (model never reached that GWL on this leg).
+    T_axis must be monotone in the given ``direction`` ('increasing' for the
+    ramp-up leg, 'decreasing' for the ramp-down leg). Strictly monotone is
+    required for a unique inverse; ties (flat segments) are nudged by a tiny
+    epsilon so the interpolator is well defined. For 'decreasing', T_axis and
+    T_grid are negated before inversion (making them increasing for
+    PchipInterpolator) and the looked-up years are returned as-is -- negation
+    only touches the temperature values, never the years. Values of T_grid
+    outside the model's realized range return NaN (model never reached that
+    GWL on this leg).
     """
-    T = np.asarray(T_axis, float).copy()
+    if direction not in ("increasing", "decreasing"):
+        raise ValueError(f"Unknown direction '{direction}'.")
+    sign = 1.0 if direction == "increasing" else -1.0
+
+    T = sign * np.asarray(T_axis, float).copy()
     # break exact ties to make strictly increasing
     eps = 1e-9
     for i in range(1, len(T)):
         if T[i] <= T[i - 1]:
             T[i] = T[i - 1] + eps
     inv = PchipInterpolator(T, years, extrapolate=False)
-    t_of_T = inv(T_grid)  # NaN outside [T.min(), T.max()]
+    t_of_T = inv(sign * np.asarray(T_grid, float))  # NaN outside realized range
     return t_of_T
 
 
@@ -242,16 +304,27 @@ def resample_variable(years, var, t_of_T):
 # Orchestration
 # ---------------------------------------------------------------------------
 
-def gwl_grid(step: float = 0.1, gwl_max: float = 4.0) -> np.ndarray:
-    """Build the common GWL coordinate: 0 to ``gwl_max`` in steps of ``step`` (degC).
+GWL_GRID_STEP = 0.02  # degC; one year at the protocol's nominal 2 degC/century rate
 
-    Endpoints are included (e.g. ``gwl_grid(0.1)`` -> 0.0, 0.1, …, 4.0).
+
+def gwl_grid(
+    step: float = GWL_GRID_STEP, gwl_max: float = 4.0, gwl_min: float = 0.0
+) -> np.ndarray:
+    """Build a common GWL coordinate: ``gwl_min`` to ``gwl_max`` in steps of ``step`` (degC).
+
+    Endpoints are included (e.g. ``gwl_grid()`` -> 0.00, 0.02, …, 4.00 at the
+    default step). Defaults match the ramp-up leg (0-4 degC); the ramp-down leg
+    passes an explicit ``gwl_min``/``gwl_max`` spanning its own realized range
+    instead (models overshoot-cool to different depths, unlike ramp-up where all
+    clean models reach ~4 degC).
     """
     if step <= 0:
         raise ValueError(f"gwl step must be positive, got {step}")
-    if gwl_max < 0:
-        raise ValueError(f"gwl_max must be non-negative, got {gwl_max}")
-    return np.arange(0.0, gwl_max + step / 2, step)
+    if gwl_max <= gwl_min:
+        raise ValueError(
+            f"gwl_max must exceed gwl_min, got gwl_max={gwl_max}, gwl_min={gwl_min}"
+        )
+    return np.arange(gwl_min, gwl_max + step / 2, step)
 
 
 @dataclass
@@ -259,9 +332,10 @@ class MappingConfig:
     window: int = 31
     method: str = "running_mean"
     detrend_pi: bool = False
-    # Common GWL grid: 0-4 degC in 0.1 steps. All clean models reach ~4 degC;
-    # above that the ensemble thins and values beyond a model's range are NaN.
+    # Common GWL grid: 0-4 degC in 0.02 degC steps (~1 yr at 2 degC/century).
     T_grid: np.ndarray = field(default_factory=lambda: gwl_grid())
+    # 'increasing' for the ramp-up leg (default), 'decreasing' for ramp-down.
+    direction: str = "increasing"
 
 
 @dataclass
@@ -289,7 +363,11 @@ def map_model(
     *,
     pi_reference: float | None = None,
 ):
-    """Full per-model pipeline: anomaly -> monotone axis -> t(T) -> resample.
+    """Full per-model pipeline (paper Steps 1–3).
+
+    Step 1: anomaly from piControl reference.
+    Step 2: smooth and enforce monotonicity (:func:`axis_variable`).
+    Step 3: invert onto the common GWL grid (:func:`invert_to_grid`).
 
     This is the single source of truth for the mapping algorithm; the CMIP-aware
     drivers (``product.build_mapping_dataset``, ``diagnostics.run_diagnostics``)
@@ -310,16 +388,24 @@ def map_model(
     pi_ref = (
         float(pi_reference)
         if pi_reference is not None
-        else picontrol_reference(pi_years, pi_gmsat, branch_year, detrend=cfg.detrend_pi)
+        else picontrol_reference(
+            pi_years, pi_gmsat, branch_year, detrend=cfg.detrend_pi
+        )
     )
     anom = to_anomaly(ru_years, ru_gmsat, pi_ref)
     T_axis, T_pre = axis_variable(
-        ru_years, anom, method=cfg.method, window=cfg.window, return_intermediate=True
+        ru_years,
+        anom,
+        method=cfg.method,
+        window=cfg.window,
+        return_intermediate=True,
+        direction=cfg.direction,
     )
-    t_of_T = invert_to_grid(ru_years, T_axis, cfg.T_grid)
+    t_of_T = invert_to_grid(ru_years, T_axis, cfg.T_grid, direction=cfg.direction)
     diag = monotonicity_report(anom, T_pre, T_axis)
     diag["pi_reference_GMSAT"] = pi_ref
     diag["max_GWL_reached"] = float(np.nanmax(T_axis))
+    diag["min_GWL_reached"] = float(np.nanmin(T_axis))
 
     mm = ModelMapping(
         name=name,
@@ -369,6 +455,7 @@ def sensitivity_matrix(
     methods=("running_mean", "monotone_spline"),
     detrend_opts=(False, True),
     T_grid=None,
+    direction="increasing",
 ):
     """Re-run the mapping over a grid of methodological choices for one model.
 
@@ -381,7 +468,13 @@ def sensitivity_matrix(
     for w in windows:
         for meth in methods:
             for dt in detrend_opts:
-                cfg = MappingConfig(window=w, method=meth, detrend_pi=dt, T_grid=T_grid)
+                cfg = MappingConfig(
+                    window=w,
+                    method=meth,
+                    detrend_pi=dt,
+                    T_grid=T_grid,
+                    direction=direction,
+                )
                 mm = map_model(
                     name,
                     ru_years,
