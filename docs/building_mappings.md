@@ -24,17 +24,18 @@ days-in-month-weighted annual mean is applied on read (Step 1). See
 
 ```bash
 conda activate toad312
-pip install -e ".[plot]"
+pip install -e ".[paper]"
 
 # 1. Stage gmstmon (if not already on disk)
-tipmip-gwl-preprocess --exp esm-piControl --outdir ~/Desktop/tipmip/tas/esm-piControl/gmstmon
-tipmip-gwl-preprocess --exp esm-up2p0       --outdir ~/Desktop/tipmip/tas/esm-up2p0/gmstmon
+python scripts/build_gmstmon.py --exp esm-piControl --outdir ~/Desktop/tipmip/tas/esm-piControl/gmstmon
+python scripts/build_gmstmon.py --exp esm-up2p0       --outdir ~/Desktop/tipmip/tas/esm-up2p0/gmstmon
 
-# 2. Optional sanity table + diagnostic figures
-tipmip-gwl-diagnostics \
+# 2. Optional sanity table
+python scripts/run_diagnostics.py \
   --up2p0-dir ~/Desktop/tipmip/tas/esm-up2p0/gmstmon \
-  --picontrol-dir ~/Desktop/tipmip/tas/esm-piControl/gmstmon \
-  --plot --plotdir figures/
+  --picontrol-dir ~/Desktop/tipmip/tas/esm-piControl/gmstmon
+
+# Optional piControl figure: python paper/figures_1_2.py ...
 
 # 3. Build mapping products
 tipmip-gwl-build \
@@ -66,8 +67,13 @@ the bundled snapshot before tagging a release:
 
 ```bash
 python scripts/sync_bundled_mappings.py
-# copies mapping/gwlmap_*_esm-up2p0_v1.nc -> src/tipmip_gwl/data/mappings/
+# copies 24 publishable v1 files (8 ramp-up + 16 ramp-down) into
+# src/tipmip_gwl/data/mappings/
 ```
+
+The sync script copies **ramp-up and ramp-down legs only** (Tier-1 ensemble,
+mapping version `v1`). Zero-emission-hold mappings in `mapping/` are left out —
+they are not part of the v1 user product.
 
 Commit the updated `.nc` files so `pip install tipmip-gwl` carries the new
 ensemble.
@@ -84,16 +90,16 @@ Each `gwlmap_*.nc` includes:
 - Provenance: input `tracking_id`s, parent run, code version, git revision,
   `mapping_version`
 
-## Exploratory legs
+## Other protocol legs
 
-Ramp-down and zero-emission-hold legs use separate builders (`tipmip-gwl-build-rampdown`,
-`tipmip-gwl-build-zehold`). They are not bundled with the default user install;
-see `paper/build_all.py` when those tas directories are staged.
+Ramp-down mappings use `tipmip-gwl-build-rampdown` and are bundled with the
+package (see sync step above). Zero-emission-hold characterisation is
+**exploratory** — see `exploratory/zehold/` (not installed, not bundled).
 
 ## Python API (building)
 
 ```python
-from tipmip_gwl.product import build_mapping_dataset, write_mapping, write_products
+from tipmip_gwl.build import build_mapping_dataset, write_mapping, write_products
 
 written, skipped = write_products(up2p0_dir, picontrol_dir, "mapping/")
 ```

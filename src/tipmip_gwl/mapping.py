@@ -30,7 +30,7 @@ Scope / assumptions
 Pipeline (paper Steps 1–3)
 --------------------------
 1. **Anomaly computation** — :func:`picontrol_reference`, :func:`to_anomaly`;
-   GMSAT I/O in :mod:`tipmip_gwl.io` and :mod:`tipmip_gwl.preprocess`.
+   GMSAT I/O in :mod:`tipmip_gwl.io`; archive preprocessing in ``scripts/build_gmstmon.py``.
 2. **Smoothing and monotonicity** — :func:`axis_variable`,
    :func:`monotonicity_report`.
 3. **Inversion and resampling** — :func:`invert_to_grid`,
@@ -45,23 +45,6 @@ from dataclasses import dataclass, field
 
 import numpy as np
 from scipy.interpolate import PchipInterpolator
-
-
-# ---------------------------------------------------------------------------
-# I/O (generic ASCII helper; NetCDF loading lives in tipmip_gwl.tipmip)
-# ---------------------------------------------------------------------------
-def load_series(path, year_col=0, value_col=1, comments="#"):
-    """Load a (year, value) ASCII series. Returns (years, values) float arrays.
-
-    Adjust column indices / delimiter to the real file format.
-    """
-    raw = np.genfromtxt(path, comments=comments)
-    if raw.ndim == 1:  # single row safety
-        raw = raw[None, :]
-    years = raw[:, year_col].astype(float)
-    vals = raw[:, value_col].astype(float)
-    order = np.argsort(years)
-    return years[order], vals[order]
 
 
 # ---------------------------------------------------------------------------
@@ -372,7 +355,7 @@ def map_model(
     Step 3: invert onto the common GWL grid (:func:`invert_to_grid`).
 
     This is the single source of truth for the mapping algorithm; the CMIP-aware
-    drivers (``product.build_mapping_dataset``, ``diagnostics.run_diagnostics``)
+    drivers (``build.build_mapping_dataset``, ``scripts/run_diagnostics.py``)
     call it rather than re-implementing the steps.
 
     extra_vars : dict {varname: (years, values)} to resample onto the T grid

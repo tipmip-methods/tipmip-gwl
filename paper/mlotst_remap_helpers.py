@@ -26,16 +26,32 @@ def area_weighted_global_mean(da: xr.DataArray, lat: xr.DataArray) -> np.ndarray
     return (weighted / norm).values
 
 
-def mapping_index_by_rampup_model(mapping_dir: Path) -> dict[str, Path]:
-    """Index gwlmap_*.nc ramp-up products by canonical model id."""
+def mapping_index_by_leg(mapping_dir: Path, leg: str) -> dict[str, Path]:
+    """Index ``gwlmap_*.nc`` products by model id for a logical ``leg`` alias."""
+    from tipmip_gwl.product import (
+        _experiment_matches_leg,
+        _normalize_leg,
+        _parse_mapping_filename,
+    )
+
+    leg = _normalize_leg(leg)
     out: dict[str, Path] = {}
     for path in sorted(mapping_dir.glob("gwlmap_*.nc")):
+        parsed = _parse_mapping_filename(path)
+        if parsed is None:
+            continue
+        _model, exp, _ver = parsed
+        if not _experiment_matches_leg(exp, leg):
+            continue
         with xr.open_dataset(path) as ds:
-            if str(ds.attrs.get("leg", "ramp-up")) != "ramp-up":
-                continue
-            model = model_label(dict(ds.attrs))
-        out[model] = path
+            mid = model_label(dict(ds.attrs))
+        out[mid] = path
     return out
+
+
+def mapping_index_by_rampup_model(mapping_dir: Path) -> dict[str, Path]:
+    """Index gwlmap_*.nc ramp-up products by canonical model id."""
+    return mapping_index_by_leg(mapping_dir, "ramp-up")
 
 
 def calendar_years(ds: xr.Dataset) -> np.ndarray:

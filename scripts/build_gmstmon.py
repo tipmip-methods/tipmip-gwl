@@ -1,10 +1,10 @@
+#!/usr/bin/env python3
 """
-preprocess.py
-=============
 Build ``gmstmon`` files (monthly area-weighted global-mean ``tas``) from raw CMIP
 chunks listed in a hand-maintained path manifest.
 
-The days-in-month weighted **annual** mean is still applied later by
+Maintainer script — not part of the installed ``tipmip_gwl`` package. The
+days-in-month weighted **annual** mean is applied later by
 :func:`tipmip_gwl.io.load_gmsat_nc` when you read the file.
 """
 
@@ -15,6 +15,7 @@ import csv
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 from collections import defaultdict
 from pathlib import Path
@@ -27,7 +28,7 @@ TIMERANGE_RE = re.compile(r"^(?P<tstart>\d+)-(?P<tend>\d+)$")
 
 
 def default_tas_chunks_manifest() -> Path:
-    """Shipped path list: ``src/tipmip_gwl/data/tas_chunks.tsv``."""
+    """Default path list: ``scripts/data/tas_chunks.tsv``."""
     return Path(__file__).resolve().parent / "data" / "tas_chunks.tsv"
 
 
@@ -142,6 +143,76 @@ def _open_time_coder():
         return True  # type: ignore[return-value]
 
 
+def _monthly_keep_indices(da: xr.DataArray) -> tuple[list[int], list[str]]:
+    """Return indices of the first occurrence of each calendar (year, month)."""
+    warns: list[str] = []
+    if da.sizes.get("time", 0) == 0:
+        return [], warns
+
+    years = da["time"].dt.year.values
+    months = da["time"].dt.month.values
+    keep: list[int] = []
+    seen: set[tuple[int, int]] = set()
+    buckets: dict[tuple[int, int], list[float]] = defaultdict(list)
+
+    flat = np.asarray(da.values, dtype=float).reshape(da.sizes["time"], -1)[:, 0]
+    for i, (y, m) in enumerate(zip(years, months)):
+        key = (int(y), int(m))
+        buckets[key].append(float(flat[i]))
+        if key in seen:
+            continue
+        seen.add(key)
+        keep.append(i)
+
+    dropped = da.sizes["time"] - len(keep)
+    if dropped:
+        conflicts = sum(
+            1
+            for vals in buckets.values()
+            if len(vals) > 1 and (max(vals) - min(vals)) > 1e-6
+        )
+        if conflicts:
+            warns.append(
+                f"deduplicated {dropped} overlapping monthly timesteps "
+                f"({conflicts} month(s) with differing values)"
+            )
+        else:
+            warns.append(
+                f"deduplicated {dropped} overlapping monthly timesteps (values identical)"
+            )
+    return keep, warns
+
+
+def _dedupe_monthly_time(da: xr.DataArray) -> tuple[xr.DataArray, list[str]]:
+    """Keep the first timestep for each calendar (year, month) after a merge."""
+    keep, warns = _monthly_keep_indices(da)
+    if not keep or len(keep) == da.sizes["time"]:
+        return da, warns
+    return da.isel(time=keep), warns
+
+
+def _dedupe_monthly_dataset(ds: xr.Dataset, var: str = "tas") -> tuple[xr.Dataset, list[str]]:
+    """Drop duplicate calendar months on ``var``'s time axis."""
+    if var not in ds:
+        return ds, []
+    keep, warns = _monthly_keep_indices(ds[var])
+    if not keep or len(keep) == ds.sizes.get("time", 0):
+        return ds, warns
+    out = ds.isel(time=keep)
+    extra_vars = [name for name in out.data_vars if name != var]
+    if extra_vars:
+        out = out.drop_vars(extra_vars)
+    bnds = [name for name in out.coords if name.endswith("_bnds")]
+    if bnds:
+        out = out.drop_vars(bnds)
+    return out, warns
+
+
+def _write_gmstmon_dataset(out: xr.Dataset, out_path: Path) -> None:
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out.to_netcdf(out_path)
+
+
 def build_gmstmon_xarray(
     chunks: list[Path | str],
     out_path: Path | str,
@@ -186,8 +257,10 @@ def build_gmstmon_xarray(
         out.attrs["title"] = (
             f"Monthly area-weighted global mean tas for {meta['model']} {meta['exp']}"
         )
-        out_path.parent.mkdir(parents=True, exist_ok=True)
-        out.to_netcdf(out_path)
+        out, dedupe_warns = _dedupe_monthly_dataset(out)
+        for w in dedupe_warns:
+            print(f"  WARN {out_path.name}: {w}")
+        _write_gmstmon_dataset(out, out_path)
     finally:
         ds.close()
     return out_path
@@ -223,6 +296,19 @@ def build_gmstmon_cdo(
             [cdo, "-O", "fldmean", str(merged), str(out_path)],
             check=True,
         )
+
+    coder = _open_time_coder()
+    ds = xr.open_dataset(out_path, decode_times=coder)
+    try:
+        out, dedupe_warns = _dedupe_monthly_dataset(ds)
+        for w in dedupe_warns:
+            print(f"  WARN {out_path.name}: {w}")
+        if out.sizes.get("time", 0) != ds.sizes.get("time", 0):
+            tmp = out_path.with_suffix(".dedupe_tmp.nc")
+            out.to_netcdf(tmp)
+            tmp.replace(out_path)
+    finally:
+        ds.close()
     return out_path
 
 
@@ -298,8 +384,7 @@ def main(argv: list[str] | None = None) -> None:
         "--manifest",
         type=Path,
         default=None,
-        help="TSV with columns model, experiment_id, path (default: bundled "
-        "tas_chunks.tsv)",
+        help="TSV with columns model, experiment_id, path (default: scripts/data/tas_chunks.tsv)",
     )
     parser.add_argument(
         "--exp",
@@ -373,3 +458,7 @@ def main(argv: list[str] | None = None) -> None:
         overwrite=args.overwrite,
     )
     print(f"\n{len(written)} gmstmon file(s) in {args.outdir}")
+
+
+if __name__ == "__main__":
+    main(sys.argv[1:])

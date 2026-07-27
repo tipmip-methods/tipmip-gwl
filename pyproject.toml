@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "tipmip-gwl"
 version = "0.1.0"
-description = "Re-index TIPMIP ramp-up output onto a common global warming level (temperature) axis."
+description = "Re-index TIPMIP ramp-up and ramp-down output onto a common global warming level axis."
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
@@ -17,18 +17,15 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-plot = ["matplotlib"]
+paper = ["matplotlib"]
 test = ["pytest"]
 
 [project.scripts]
-tipmip-gwl-diagnostics = "tipmip_gwl.diagnostics:main"
-tipmip-gwl-build = "tipmip_gwl.product:main"
-tipmip-gwl-build-rampdown = "tipmip_gwl.rampdown:main"
-tipmip-gwl-build-zehold = "tipmip_gwl.zehold:main"
-tipmip-gwl-preprocess = "tipmip_gwl.preprocess:main"
+tipmip-gwl-build = "tipmip_gwl.build:main"
+tipmip-gwl-build-rampdown = "tipmip_gwl.build:main_rampdown"
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.setuptools.package-data]
-tipmip_gwl = ["data/tas_chunks.tsv", "data/mappings/*.nc"]
+tipmip_gwl = ["data/mappings/*.nc"]

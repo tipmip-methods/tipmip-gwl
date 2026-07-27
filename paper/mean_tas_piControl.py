@@ -31,6 +31,8 @@ from tipmip_gwl.baseline import (
 from tipmip_gwl.io import discover, load_gmsat_nc, read_attrs
 from tipmip_gwl.mapping import picontrol_drift
 
+from paper_style import model_color_map
+
 plt.rcParams["figure.dpi"] = 300
 
 BRANCH_WINDOW = 31
@@ -127,6 +129,7 @@ def main(up2p0_dir, picontrol_dir, out_path=None):
     drifts = drifts[sort_idx]
     diffs = diffs[sort_idx]
     model_names = model_names[sort_idx]
+    colors = model_color_map(list(model_names))
 
     n = len(means)
     y = np.arange(n, dtype=float)
@@ -183,9 +186,24 @@ def main(up2p0_dir, picontrol_dir, out_path=None):
             transform=ax_names.get_yaxis_transform(),
         )
 
-    ax_means.scatter(means, y_full, marker="o", color="k", s=38, zorder=3)
     ax_means.scatter(
-        branch_means, y_branch, marker="x", facecolor="k", s=38, linewidth=1.4, zorder=3
+        means,
+        y_full,
+        marker="o",
+        c=[colors[name] for name in model_names],
+        s=38,
+        edgecolor="k",
+        linewidth=0.5,
+        zorder=3,
+    )
+    ax_means.scatter(
+        branch_means,
+        y_branch,
+        marker="x",
+        c=[colors[name] for name in model_names],
+        s=38,
+        linewidth=1.4,
+        zorder=3,
     )
     x_pad = 0.06
     for i in range(n):
@@ -251,7 +269,7 @@ def main(up2p0_dir, picontrol_dir, out_path=None):
     ax_diff.scatter(
         diffs[ok_diff],
         y[ok_diff],
-        color="C4",
+        c=[colors[name] for name in model_names[ok_diff]],
         s=42,
         edgecolor="k",
         linewidth=0.6,
@@ -262,7 +280,13 @@ def main(up2p0_dir, picontrol_dir, out_path=None):
     ax_diff.set_xlim(-0.12, 0.12)
 
     ax_drift.scatter(
-        drifts, y, color="C3", s=42, edgecolor="k", linewidth=0.6, zorder=3
+        drifts,
+        y,
+        c=[colors[name] for name in model_names],
+        s=42,
+        edgecolor="k",
+        linewidth=0.6,
+        zorder=3,
     )
     ax_drift.set_xlabel("Drift (°C / century)", fontsize=10)
     ax_drift.set_title("Linear drift", fontsize=11, pad=8)

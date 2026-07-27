@@ -1,12 +1,8 @@
 """
-Figures 1 and 2: ramp-up GWL overlay, and piControl GMSAT with the full-run
-baseline.
+Figure 2: piControl GMSAT with the full-run baseline.
 
-Thin wrapper around tipmip_gwl.diagnostics.run_diagnostics +
-tipmip_gwl.plotting.plot_diagnostics (also reachable via the installed
-``tipmip-gwl-diagnostics --plot`` CLI); kept as its own paper/ script so every
-figure has exactly one generating script with the same --up2p0-dir/
---picontrol-dir/--out-dir convention as the rest of the pipeline.
+Figure 1 (ramp-up / ramp-down monotone GWL axes) is produced by
+``plot_mapping_axis_up_down.py`` — see ``build_all.py``.
 
 Usage::
 
@@ -18,26 +14,30 @@ Usage::
 from __future__ import annotations
 
 import argparse
+import sys
 from pathlib import Path
 
-from tipmip_gwl.diagnostics import print_table, run_diagnostics
-from tipmip_gwl.plotting import plot_diagnostics
+PAPER_DIR = Path(__file__).resolve().parent
+REPO_ROOT = PAPER_DIR.parent
+sys.path.insert(0, str(REPO_ROOT / "scripts"))
+sys.path.insert(0, str(PAPER_DIR))
 
-DEFAULT_OUT_DIR = Path(__file__).resolve().parent / "figures"
+from run_diagnostics import print_table, run_diagnostics
+from plot_diagnostics import plot_diagnostics
+DEFAULT_OUT_DIR = PAPER_DIR / "figures"
 
 
 def main(up2p0_dir, picontrol_dir, window=31, out_dir=None):
     diags = run_diagnostics(up2p0_dir, picontrol_dir, window=window)
     print_table(diags)
     out_dir = Path(out_dir) if out_dir else DEFAULT_OUT_DIR
-    path_a, path_b = plot_diagnostics(diags, out_dir)
-    print(f"Saved {path_a}")
+    _path_a, path_b = plot_diagnostics(diags, out_dir, rampup=False)
     if path_b:
         print(f"Saved {path_b}")
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Build Figures 1 and 2.")
+    parser = argparse.ArgumentParser(description="Build piControl baseline figure.")
     parser.add_argument("--up2p0-dir", required=True)
     parser.add_argument("--picontrol-dir", required=True)
     parser.add_argument("--window", type=int, default=31)

@@ -1,360 +1,207 @@
 """
 product.py
 ==========
-Build the canonical data product: one NetCDF file per TIPMIP ESM that holds the
-time<->GWL transform plus the baseline, provenance, and mapping diagnostics.
+Load published TIPMIP time<->GWL mapping products and apply them to diagnostics.
 
-The file is a *coordinate* product, not a data job: it ships the transform
-(``year_of_gwl`` = t(GWL) on the common 0-4 degC grid, and ``gwl_axis`` =
-forward GWL(t)) so downstream users apply it to their own diagnostic variables.
-No remapped variables are stored.
-
-Each file records enough to make a downstream analysis reproducible and pinnable:
-input ``tracking_id``s, the parent run, the baseline method and drift, the
-monotonisation adjustment, the code version, and a mapping version.
-
-Downstream users load published files with :func:`load_mapping` (bundled in the
-package) and apply :func:`resample_to_gwl` or :func:`relabel_to_gwl` to their
-own diagnostics.
-
-Dependencies: numpy, xarray, and the sibling :mod:`tipmip_gwl` modules.
+Downstream users call :func:`load_mapping`, then :func:`resample_to_gwl` or
+:func:`relabel_to_gwl`. Maintainers build new products with :mod:`tipmip_gwl.build`.
 """
 
 from __future__ import annotations
 
-import argparse
-import datetime as _dt
 import re
-import subprocess
 from pathlib import Path
 
 import numpy as np
 import xarray as xr
 
-from . import baseline as bl
 from . import mapping
 from .mapping import gwl_grid
-from .io import discover, load_gmsat_nc, read_attrs
 
 
 class NotMappable(Exception):
     """Raised when a model cannot be mapped (e.g. no piControl tas on disk)."""
 
 
-def _git_revision() -> str:
-    """Short git hash of the installed source, or '' if unavailable."""
-    try:
-        here = Path(__file__).resolve().parent
-        out = subprocess.check_output(
-            ["git", "-C", str(here), "rev-parse", "--short", "HEAD"],
-            stderr=subprocess.DEVNULL,
-        )
-        return out.decode().strip()
-    except Exception:  # noqa: BLE001
-        return ""
-
-
-def _package_version() -> str:
-    try:
-        from . import __version__
-
-        return __version__
-    except Exception:  # noqa: BLE001
-        return "unknown"
-
-
-def build_mapping_dataset(
-    model,
-    ru_path,
-    pi_path,
-    *,
-    window: int = 31,
-    detrend: bool = False,
-    t_grid=None,
-    mapping_version: str = "v1",
-) -> xr.Dataset:
-    """Compute the full mapping for one model and return it as an xarray Dataset.
-
-    Raises :class:`NotMappable` only when no piControl tas is available for the
-    model at all -- that is the sole hard requirement. Everything else -- wrong
-    ``experiment_id``, no parent declared, a parent declared but its branch year
-    specifically undecodable, or a branch year outside the staged piControl
-    span -- is recorded as a warning on the output dataset instead of blocking
-    the model.
-    """
-    t_grid = (
-        mapping.MappingConfig().T_grid if t_grid is None else np.asarray(t_grid, float)
-    )
-
-    warns: list[str] = []
-    ru_attrs = read_attrs(ru_path)
-    warns.extend(bl.provenance_warnings(ru_attrs))
-
-    if pi_path is None:
-        raise NotMappable("no piControl tas available")
-
-    ru_years, ru_gmsat = load_gmsat_nc(ru_path)
-    pi_years, pi_gmsat = load_gmsat_nc(pi_path)
-    pi_attrs = read_attrs(pi_path)
-
-    bi = bl.branch_year_from_attrs(ru_attrs)
-    try:
-        branch, branch_warns = bl.resolve_branch_year(bi, model, ru_years, pi_years)
-    except ValueError as exc:
-        raise NotMappable(str(exc)) from exc
-    warns.extend(branch_warns)
-
-    base = bl.compute_baseline(
-        pi_years, pi_gmsat, branch, detrend=detrend, window=window,
-    )
-    cfg = mapping.MappingConfig(
-        window=window, method="running_mean", detrend_pi=detrend, T_grid=t_grid
-    )
-    mm = mapping.map_model(
-        model,
-        ru_years,
-        ru_gmsat,
-        pi_years,
-        pi_gmsat,
-        branch,
-        cfg=cfg,
-        pi_reference=base.reference,
-    )
-    anom = mm.anom
-    T_axis = mm.T_axis
-    T_pre = mm.T_pre
-    year_of_gwl = mm.t_of_T
-    rep = mm.diagnostics
-
-    now = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    version = _package_version()
-
-    ds = xr.Dataset(
-        data_vars={
-            "year_of_gwl": (
-                "gwl",
-                year_of_gwl.astype("float64"),
-                {
-                    "long_name": "model year at which each global warming level was reached",
-                    "units": "year",
-                    "comment": "Inverse transform t(GWL) by monotone cubic (PCHIP) "
-                    "interpolation; NaN beyond the model's realised range.",
-                },
-            ),
-            "gwl_axis": (
-                "year",
-                T_axis.astype("float64"),
-                {
-                    "long_name": "monotone global warming level axis",
-                    "units": "degC",
-                    "comment": "Forward transform GWL(t): 31-yr centred running mean of "
-                    "the anomaly, made non-decreasing by isotonic (PAVA) regression. "
-                    "This is the axis that was inverted.",
-                },
-            ),
-            "gmsat_anomaly": (
-                "year",
-                anom.astype("float64"),
-                {
-                    "long_name": "annual-mean GMSAT anomaly relative to piControl baseline",
-                    "units": "degC",
-                    "comment": "Unsmoothed days-in-month weighted annual mean minus the "
-                    "scalar baseline.",
-                },
-            ),
-            "gmsat_anomaly_smoothed": (
-                "year",
-                T_pre.astype("float64"),
-                {
-                    "long_name": "31-yr centred running mean of the GMSAT anomaly",
-                    "units": "degC",
-                    "comment": "Smoothed anomaly before the monotonicity step.",
-                },
-            ),
-            "baseline_gmsat": (
-                (),
-                np.float64(base.reference),
-                {
-                    "long_name": "piControl reference GMSAT (anomaly zero point)",
-                    "units": "K",
-                },
-            ),
-            "picontrol_drift": (
-                (),
-                np.float64(base.drift_degC_per_century),
-                {
-                    "long_name": "linear drift of the full piControl GMSAT",
-                    "units": "degC/century",
-                    "comment": "Quality flag; |drift| > 0.5 degC/century suggests "
-                    "checking baseline choice or using --detrend-pi.",
-                },
-            ),
-            "monotonization_max": (
-                (),
-                np.float64(rep["monotonization_max_degC"]),
-                {
-                    "long_name": "maximum adjustment made by the monotonicity step",
-                    "units": "degC",
-                    "comment": "max|smoothed - monotone|; near zero means the inversion "
-                    "is well posed, larger values flag a plateau/reversal to inspect.",
-                },
-            ),
-            "branch_year": (
-                (),
-                np.float64(branch) if branch is not None else np.float64("nan"),
-                {
-                    "long_name": "piControl calendar year the ramp-up branched from",
-                    "units": "year",
-                    "comment": "NaN when the branch year could not be decoded "
-                    "(baseline_method ends in '_no_branch_year'); falls back to "
-                    "the full piControl mean.",
-                },
-            ),
-            "max_gwl_reached": (
-                (),
-                np.float64(np.nanmax(T_axis)),
-                {
-                    "long_name": "maximum global warming level reached on the monotone axis",
-                    "units": "degC",
-                },
-            ),
-        },
-        coords={
-            "gwl": (
-                "gwl",
-                t_grid.astype("float64"),
-                {
-                    "long_name": "global warming level (GMSAT anomaly above piControl baseline)",
-                    "units": "degC",
-                    "axis": "X",
-                },
-            ),
-            "year": (
-                "year",
-                ru_years.astype("int32"),
-                {"long_name": "ramp-up model calendar year", "units": "year"},
-            ),
-        },
-    )
-
-    ds.attrs = {
-        "Conventions": "CF-1.10",
-        "title": f"TIPMIP time-to-GWL mapping for {model} (esm-up2p0)",
-        "summary": "Coordinate transform between calendar time and global warming "
-        "level (GWL) for the TIPMIP esm-up2p0 ramp-up leg, with the piControl "
-        "baseline and mapping diagnostics. Apply the transform to your own "
-        "diagnostic variables; no remapped variables are shipped.",
-        "method": (
-            "GWL(t) = 31-yr centred running mean of GMSAT anomaly (isotonic), "
-            f"minus piControl reference ({base.method}). "
-            "See baseline_method and tipmip-gwl documentation."
-        ),
-        "source_id": str(ru_attrs.get("source_id", model)),
-        "model_id": str(model),
-        "experiment_id": str(ru_attrs.get("experiment_id", "esm-up2p0")),
-        "variant_label": str(ru_attrs.get("variant_label", "")),
-        "grid_label": str(ru_attrs.get("grid_label", "")),
-        "baseline_method": base.method,
-        "baseline_n_years": int(base.n_years),
-        "picontrol_detrended": "true" if detrend else "false",
-        "rampup_start_year": int(ru_years.min()),
-        "rampup_file": Path(ru_path).name,
-        "picontrol_file": Path(pi_path).name,
-        "rampup_tracking_id": str(ru_attrs.get("tracking_id", "")),
-        "picontrol_tracking_id": str(pi_attrs.get("tracking_id", "")),
-        "parent_source_id": str(ru_attrs.get("parent_source_id", "")),
-        "parent_experiment_id": str(ru_attrs.get("parent_experiment_id", "")),
-        "parent_variant_label": str(ru_attrs.get("parent_variant_label", "")),
-        "mapping_version": mapping_version,
-        "code_package": "tipmip-gwl",
-        "code_version": version,
-        "git_revision": _git_revision(),
-        "created": now,
-        "history": f"{now}: created by tipmip-gwl {version}",
-    }
-    if warns:
-        ds.attrs["mapping_warnings"] = "; ".join(warns)
-    return ds
-
-
-def load_rampup_baseline(mapping_dir, model) -> tuple[float, str] | None:
-    """Return ``(baseline_gmsat, baseline_method)`` from a ramp-up mapping product.
-
-    Looks in ``mapping_dir`` for a ``gwlmap_*`` file whose ``model_id`` matches
-    ``model`` and whose ``leg`` attribute is ``ramp-up``. Returns ``None`` when
-    no ramp-up product is found (callers fall back to computing a baseline).
-    """
-    mapping_dir = Path(mapping_dir)
-    for path in sorted(mapping_dir.glob("gwlmap_*.nc")):
-        with xr.open_dataset(path) as ds:
-            if str(ds.attrs.get("leg", "ramp-up")) != "ramp-up":
-                continue
-            mid = str(ds.attrs.get("model_id") or ds.attrs.get("source_id", ""))
-            if mid != model:
-                continue
-            return float(ds["baseline_gmsat"].values), str(
-                ds.attrs.get("baseline_method", "")
-            )
-    return None
-
-
-def resolve_secondary_leg_baseline(
-    mapping_dir,
-    model,
-    pi_years,
-    pi_gmsat,
-    *,
-    warns: list[str] | None = None,
-) -> bl.Baseline:
-    """Baseline for ramp-down / ZE-hold legs: inherit ramp-up product when present."""
-    rampup = load_rampup_baseline(mapping_dir, model) if mapping_dir else None
-    if rampup is not None:
-        ref, method = rampup
-        drift = mapping.picontrol_drift(pi_years, pi_gmsat)
-        finite = np.isfinite(pi_years) & np.isfinite(pi_gmsat)
-        return bl.Baseline(
-            reference=ref,
-            method=method,
-            n_years=int(finite.sum()),
-            span=(
-                (float(pi_years[finite].min()), float(pi_years[finite].max()))
-                if finite.any()
-                else (np.nan, np.nan)
-            ),
-            drift_degC_per_century=drift["drift_degC_per_century"],
-            detrended=False,
-        )
-    if mapping_dir is not None and warns is not None:
-        warns.append(
-            "no ramp-up mapping found in mapping_dir; baseline computed "
-            "from piControl (full mean)"
-        )
-    return bl.compute_baseline(pi_years, pi_gmsat, branch_year=None)
-
-
-def write_mapping(ds: xr.Dataset, outdir, filename: str | None = None) -> Path:
-    """Write a mapping dataset to NetCDF, returning the path."""
-    outdir = Path(outdir)
-    outdir.mkdir(parents=True, exist_ok=True)
-    if filename is None:
-        mid = ds.attrs.get("model_id") or ds.attrs.get("source_id", "model")
-        ver = ds.attrs.get("mapping_version", "v1")
-        filename = f"gwlmap_{mid}_esm-up2p0_{ver}.nc"
-    path = outdir / filename
-    ds.to_netcdf(path)
-    return path
-
-
 DEFAULT_EXPERIMENT = "esm-up2p0"
 DEFAULT_MAPPING_VERSION = "v1"
+
+LEG_RAMP_UP = "ramp-up"
+LEG_RAMP_DOWN_2C = "ramp-down-2c"
+LEG_RAMP_DOWN_4C = "ramp-down-4c"
+_KNOWN_LEGS = (LEG_RAMP_UP, LEG_RAMP_DOWN_2C, LEG_RAMP_DOWN_4C)
 
 _FILENAME_RE = re.compile(
     r"^gwlmap_(?P<model>.+)_(?P<experiment>[^_]+(?:-[^_]+)*)_(?P<version>v\d+)\.nc$"
 )
 
 
+def _normalize_leg(leg: str) -> str:
+    key = leg.strip().lower().replace("_", "-")
+    aliases = {
+        "ramp-up": LEG_RAMP_UP,
+        "up": LEG_RAMP_UP,
+        "rampup": LEG_RAMP_UP,
+        LEG_RAMP_DOWN_2C: LEG_RAMP_DOWN_2C,
+        "ramp-down-2": LEG_RAMP_DOWN_2C,
+        "dn-2c": LEG_RAMP_DOWN_2C,
+        LEG_RAMP_DOWN_4C: LEG_RAMP_DOWN_4C,
+        "ramp-down-4": LEG_RAMP_DOWN_4C,
+        "dn-4c": LEG_RAMP_DOWN_4C,
+    }
+    try:
+        return aliases[key]
+    except KeyError as exc:
+        raise ValueError(
+            f"unknown leg {leg!r}; use one of {', '.join(_KNOWN_LEGS)}"
+        ) from exc
+
+
+def _experiment_matches_leg(experiment: str, leg: str) -> bool:
+    """Return whether a mapping filename's experiment id matches a logical leg."""
+    leg = _normalize_leg(leg)
+    exp = experiment.lower()
+    if leg == LEG_RAMP_UP:
+        return exp == DEFAULT_EXPERIMENT
+    if leg == LEG_RAMP_DOWN_2C:
+        if "dn2p0" not in exp and "dn-" not in exp:
+            return False
+        return any(token in exp for token in ("gwl2p0", "swl2p0", "50y-2p0", "2p0-50y"))
+    if leg == LEG_RAMP_DOWN_4C:
+        if "dn2p0" not in exp and "dn-" not in exp:
+            return False
+        return any(token in exp for token in ("gwl4p0", "swl4p0", "50y-4p0", "4p0-50y"))
+    raise ValueError(f"unknown leg {leg!r}")
+
+
+def _leg_for_experiment(experiment: str) -> str | None:
+    """Return the logical leg for an experiment id, or ``None`` if unsupported."""
+    for leg in _KNOWN_LEGS:
+        if _experiment_matches_leg(experiment, leg):
+            return leg
+    return None
+
+
+def _experiment_bundle_priority(experiment: str) -> tuple[int, str]:
+    """Sort key for choosing one mapping file per model/leg (lower is preferred)."""
+    exp = experiment.lower()
+    if exp == DEFAULT_EXPERIMENT:
+        tier = 0
+    elif exp.startswith("esm-up2p0-"):
+        tier = 0
+    else:
+        tier = 1
+    return tier, exp
+
+
+def _resolve_mapping_candidates(candidates: list[Path]) -> Path:
+    """Pick a single mapping file when several match the same model and leg."""
+    by_name: dict[str, Path] = {}
+    for candidate in candidates:
+        by_name.setdefault(candidate.name, candidate)
+    unique = list(by_name.values())
+    if len(unique) == 1:
+        return unique[0]
+
+    ranked = sorted(
+        unique,
+        key=lambda path: _experiment_bundle_priority(
+            _parse_mapping_filename(path)[1]  # type: ignore[index]
+        ),
+    )
+    best = _experiment_bundle_priority(_parse_mapping_filename(ranked[0])[1])  # type: ignore[index]
+    tied = [
+        path
+        for path in ranked
+        if _experiment_bundle_priority(_parse_mapping_filename(path)[1]) == best  # type: ignore[index]
+    ]
+    if len(tied) == 1:
+        return tied[0]
+
+    names = ", ".join(p.name for p in tied)
+    raise ValueError(f"ambiguous mapping files: {names}")
+
+
+def _mapping_search_roots(
+    mapping_dir: Path | str | None,
+    leg: str,
+) -> list[Path]:
+    """Directories to scan for ``gwlmap_*.nc`` files."""
+    leg = _normalize_leg(leg)
+    roots: list[Path] = []
+    if mapping_dir is not None:
+        roots.append(Path(mapping_dir))
+    elif leg == LEG_RAMP_UP:
+        roots.append(bundled_mappings_dir())
+    else:
+        roots.extend([Path.cwd() / "mapping", bundled_mappings_dir()])
+    seen: set[Path] = set()
+    ordered: list[Path] = []
+    for root in roots:
+        resolved = root.resolve()
+        if resolved not in seen:
+            seen.add(resolved)
+            ordered.append(root)
+    return ordered
+
+
+def resolve_mapping_path(
+    model: str,
+    *,
+    leg: str = LEG_RAMP_UP,
+    version: str = DEFAULT_MAPPING_VERSION,
+    experiment: str | None = None,
+    mapping_dir: Path | str | None = None,
+    path: Path | str | None = None,
+) -> Path:
+    """Locate a ``gwlmap_*.nc`` file for ``model`` without loading it."""
+    if path is not None:
+        src = Path(path)
+        if not src.is_file():
+            raise FileNotFoundError(f"mapping file not found: {src}")
+        return src
+
+    leg = _normalize_leg(leg)
+
+    if experiment is not None:
+        for root in _mapping_search_roots(mapping_dir, leg):
+            candidate = root / f"gwlmap_{model}_{experiment}_{version}.nc"
+            if candidate.is_file():
+                return candidate
+        if leg == LEG_RAMP_UP and experiment == DEFAULT_EXPERIMENT and mapping_dir is None:
+            return bundled_mapping_path(model, version=version, experiment=experiment)
+        raise FileNotFoundError(
+            f"no mapping for {model!r} (experiment={experiment!r}, version={version})"
+        )
+
+    if leg == LEG_RAMP_UP and mapping_dir is None:
+        try:
+            return bundled_mapping_path(model, version=version)
+        except FileNotFoundError:
+            pass
+
+    candidates: list[Path] = []
+    for root in _mapping_search_roots(mapping_dir, leg):
+        if not root.is_dir():
+            continue
+        for candidate in sorted(root.glob(f"gwlmap_{model}_*_{version}.nc")):
+            parsed = _parse_mapping_filename(candidate)
+            if parsed is None:
+                continue
+            if _experiment_matches_leg(parsed[1], leg):
+                candidates.append(candidate)
+
+    if candidates:
+        return _resolve_mapping_candidates(candidates)
+
+    searched = ", ".join(str(r) for r in _mapping_search_roots(mapping_dir, leg))
+    raise FileNotFoundError(
+        f"no mapping for {model!r} (leg={leg!r}, version={version}); searched: {searched}"
+    )
+
+
 def bundled_mappings_dir() -> Path:
-    """Directory containing ramp-up mapping files bundled in the wheel/sdist."""
+    """Directory containing bundled ramp-up and ramp-down mapping files."""
     return Path(__file__).resolve().parent / "data" / "mappings"
 
 
@@ -367,24 +214,38 @@ def _parse_mapping_filename(path: Path) -> tuple[str, str, str] | None:
 
 def list_models(
     *,
+    leg: str = LEG_RAMP_UP,
     version: str = DEFAULT_MAPPING_VERSION,
-    experiment: str = DEFAULT_EXPERIMENT,
+    experiment: str | None = None,
     mapping_dir: Path | str | None = None,
 ) -> list[str]:
-    """Return sorted model ids with a mapping file in ``mapping_dir``.
+    """Return sorted model ids with a mapping file for ``leg``.
 
-    Defaults to the bundled ramp-up ensemble shipped with the package.
+    Defaults to the bundled ramp-up ensemble. Ramp-down legs are also bundled;
+    pass ``mapping_dir=`` to override with a local rebuild.
     """
-    root = Path(mapping_dir) if mapping_dir is not None else bundled_mappings_dir()
+    leg = _normalize_leg(leg)
     models: list[str] = []
-    for path in sorted(root.glob("gwlmap_*.nc")):
-        parsed = _parse_mapping_filename(path)
-        if parsed is None:
+    seen: set[str] = set()
+    for root in _mapping_search_roots(mapping_dir, leg):
+        if not root.is_dir():
             continue
-        model, exp, ver = parsed
-        if exp == experiment and ver == version:
-            models.append(model)
-    return models
+        for path in sorted(root.glob("gwlmap_*.nc")):
+            parsed = _parse_mapping_filename(path)
+            if parsed is None:
+                continue
+            model, exp, ver = parsed
+            if ver != version:
+                continue
+            if experiment is not None:
+                if exp != experiment:
+                    continue
+            elif not _experiment_matches_leg(exp, leg):
+                continue
+            if model not in seen:
+                seen.add(model)
+                models.append(model)
+    return sorted(models)
 
 
 def bundled_mapping_path(
@@ -407,17 +268,44 @@ def bundled_mapping_path(
 def load_mapping(
     model: str,
     *,
+    leg: str = LEG_RAMP_UP,
     version: str = DEFAULT_MAPPING_VERSION,
-    experiment: str = DEFAULT_EXPERIMENT,
+    experiment: str | None = None,
+    mapping_dir: Path | str | None = None,
     path: Path | str | None = None,
 ) -> xr.Dataset:
-    """Load a ramp-up mapping product into memory.
+    """Load a mapping product into memory.
 
-    By default opens the copy bundled with the installed package. Pass ``path=``
-    to use a custom ``gwlmap_*.nc`` (for example one you rebuilt locally).
+    By default opens the bundled **ramp-up** mapping. Ramp-down legs
+    (``"ramp-down-2c"``, ``"ramp-down-4c"``) are also bundled — pass ``leg=``
+    to select them. Use ``mapping_dir="mapping/"`` for a local rebuild. Long CMIP
+    ``experiment_id`` strings and explicit ``path=`` are escape hatches for
+    advanced use.
+
+    Parameters
+    ----------
+    model : str
+        Model id (e.g. ``"GFDL-ESM2M"``), matching the ``gwlmap_`` filename.
+    leg : str
+        Logical leg: ``"ramp-up"`` (default), ``"ramp-down-2c"``, or
+        ``"ramp-down-4c"``. Resolves NorESM ``swl``/standard ``gwl`` names
+        automatically when scanning ``mapping_dir``.
+    experiment : str, optional
+        Exact CMIP experiment id (overrides ``leg`` filename matching).
+    mapping_dir : path-like, optional
+        Directory of ``gwlmap_*.nc`` files. When omitted, uses the bundled data
+        (ramp-up and ramp-down legs), or ``./mapping/`` then bundled for
+        ramp-down if a file is missing from the bundle.
+    path : path-like, optional
+        Open this file directly (bypasses ``leg`` / ``mapping_dir`` search).
     """
-    src = Path(path) if path is not None else bundled_mapping_path(
-        model, version=version, experiment=experiment
+    src = resolve_mapping_path(
+        model,
+        leg=leg,
+        version=version,
+        experiment=experiment,
+        mapping_dir=mapping_dir,
+        path=path,
     )
     with xr.open_dataset(src) as ds:
         return ds.load()
@@ -425,16 +313,31 @@ def load_mapping(
 
 def _year_of_gwl_target(
     mapping_ds: xr.Dataset,
-    gwl_step: float = mapping.GWL_GRID_STEP,
-    gwl_max: float = 4.0,
+    *,
+    gwl_step: float | None = None,
+    gwl_min: float | None = None,
+    gwl_max: float | None = None,
 ) -> xr.DataArray:
-    """Fractional model year at each GWL on the requested grid (for ``resample_to_gwl``)."""
-    grid = gwl_grid(gwl_step, gwl_max)
+    """Fractional model year at each GWL on the requested grid (for ``resample_to_gwl``).
+
+    By default uses the ``gwl`` coordinate stored in ``mapping_ds`` (ramp-up
+    0–4 °C or ramp-down −1.5–2.5 °C, etc.). Pass ``gwl_step`` / ``gwl_min`` /
+    ``gwl_max`` to resample onto a custom grid instead.
+    """
     src_gwl = np.asarray(mapping_ds["gwl"].values, dtype=float)
     src_years = np.asarray(mapping_ds["year_of_gwl"].values, dtype=float)
     finite = np.isfinite(src_years) & np.isfinite(src_gwl)
     if finite.sum() < 2:
         raise ValueError("mapping_ds['year_of_gwl'] has too few finite values")
+
+    if gwl_step is None and gwl_min is None and gwl_max is None:
+        grid = src_gwl
+    else:
+        step = mapping.GWL_GRID_STEP if gwl_step is None else gwl_step
+        lo = float(np.nanmin(src_gwl)) if gwl_min is None else gwl_min
+        hi = float(np.nanmax(src_gwl)) if gwl_max is None else gwl_max
+        grid = gwl_grid(step, hi, gwl_min=lo)
+
     years = np.interp(
         grid, src_gwl[finite], src_years[finite], left=np.nan, right=np.nan
     )
@@ -446,8 +349,9 @@ def resample_to_gwl(
     data,
     year_dim="year",
     *,
-    gwl_step: float = mapping.GWL_GRID_STEP,
-    gwl_max: float = 4.0,
+    gwl_step: float | None = None,
+    gwl_min: float | None = None,
+    gwl_max: float | None = None,
 ):
     """Resample a diagnostic from calendar time onto the common GWL grid.
 
@@ -458,9 +362,11 @@ def resample_to_gwl(
     Parameters
     ----------
     mapping_ds : x.Dataset
-        A mapping product (from :func:`build_mapping_dataset` or a published
-        ``gwlmap_*.nc``). ``year_of_gwl`` is interpolated onto the grid defined
-        by ``gwl_step`` and ``gwl_max``.
+        A mapping product (from :func:`tipmip_gwl.build.build_mapping_dataset` or a published
+        ``gwlmap_*.nc``). By default the output ``gwl`` coordinate matches the
+        grid stored in the file (0–4 °C for ramp-up, roughly −1.5–2.5 °C for
+        ramp-down). Optional ``gwl_step`` / ``gwl_min`` / ``gwl_max`` refine or
+        subset that grid.
     data : x.DataArray or x.Dataset
         The diagnostic on an **annual** axis whose coordinate values are calendar
         years (named ``year_dim``). Alignment is by coordinate *value*, so the
@@ -468,10 +374,8 @@ def resample_to_gwl(
         ramp-up; non-overlapping years simply map to NaN.
     year_dim : str
         Name of the annual coordinate on ``data`` (default ``"year"``).
-    gwl_step : float
-        GWL grid spacing in degC (default ``0.02``).
-    gwl_max : float
-        Upper end of the GWL grid in degC (default ``4.0``).
+    gwl_step, gwl_min, gwl_max : float, optional
+        Custom GWL grid. If all are omitted, uses ``mapping_ds['gwl']`` as-is.
 
     Returns
     -------
@@ -494,7 +398,9 @@ def resample_to_gwl(
             f"data has no {year_dim!r} dimension; pass year_dim=... with the "
             f"name of its annual coordinate (dims: {tuple(getattr(data, 'dims', ()))})"
         )
-    target = _year_of_gwl_target(mapping_ds, gwl_step=gwl_step, gwl_max=gwl_max)
+    target = _year_of_gwl_target(
+        mapping_ds, gwl_step=gwl_step, gwl_min=gwl_min, gwl_max=gwl_max
+    )
     out = data.interp({year_dim: target})
     return out.drop_vars(year_dim, errors="ignore")
 
@@ -557,81 +463,3 @@ def relabel_to_gwl(
         out = out.rename({year_dim: new_dim})
     return out
 
-
-def write_products(
-    up2p0_dir,
-    picontrol_dir,
-    outdir,
-    *,
-    window: int = 31,
-    detrend: bool = False,
-    mapping_version: str = "v1",
-):
-    """Build and write one mapping file per mappable model in ``up2p0_dir``.
-
-    Returns ``(written, skipped)`` where ``written`` is a list of (model, path)
-    and ``skipped`` is a list of (model, reason).
-    """
-    ru_files = discover(up2p0_dir)
-    pi_files = discover(picontrol_dir)
-    written, skipped = [], []
-
-    for model in sorted(ru_files):
-        try:
-            ds = build_mapping_dataset(
-                model,
-                ru_files[model],
-                pi_files.get(model),
-                window=window,
-                detrend=detrend,
-                mapping_version=mapping_version,
-            )
-        except NotMappable as exc:
-            skipped.append((model, str(exc)))
-            continue
-        path = write_mapping(ds, outdir)
-        written.append((model, path))
-
-    return written, skipped
-
-
-def main(argv=None):
-    parser = argparse.ArgumentParser(
-        description="Build the per-model TIPMIP time->GWL mapping NetCDF product."
-    )
-    parser.add_argument(
-        "--up2p0-dir", required=True,
-        help="directory of ramp-up (esm-up2p0) global-mean tas .nc files",
-    )
-    parser.add_argument(
-        "--picontrol-dir", required=True,
-        help="directory of piControl global-mean tas .nc files",
-    )
-    parser.add_argument(
-        "--outdir", default="./mapping", help="output dir for mapping files (default ./mapping)"
-    )
-    parser.add_argument(
-        "--window", type=int, default=31,
-        help="smoothing window (years) for the GWL axis",
-    )
-    parser.add_argument("--detrend-pi", action="store_true")
-    parser.add_argument("--mapping-version", default="v1")
-    args = parser.parse_args(argv)
-
-    written, skipped = write_products(
-        args.up2p0_dir,
-        args.picontrol_dir,
-        args.outdir,
-        window=args.window,
-        detrend=args.detrend_pi,
-        mapping_version=args.mapping_version,
-    )
-    for model, path in written:
-        print(f"wrote {model:16s} -> {path}")
-    for model, reason in skipped:
-        print(f"skip  {model:16s} -- {reason}")
-    print(f"\n{len(written)} written, {len(skipped)} skipped")
-
-
-if __name__ == "__main__":
-    main()

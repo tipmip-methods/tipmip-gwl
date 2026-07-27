@@ -1,107 +1,145 @@
 #!/usr/bin/env python3
 """
-Patch CMIP parent-branch global attributes onto staged UKESM gmstmon files.
+Patch CMIP parent-branch global attributes onto staged UKESM NetCDF files.
 
-UKESM TIPMIP runs were published without ``branch_time_in_parent`` / parent
-metadata. Branch dates were supplied separately (Met Office suite lineage,
-July 2025). This script writes the standard CMIP attrs so
-``tipmip_gwl.baseline.branch_year_from_attrs`` can decode them.
+UKESM TIPMIP runs were published without reliable ``branch_time_in_parent`` /
+parent metadata (TerraFIRMA ``experiment_id`` / internal ``source_id``). Branch
+years follow Jeremy Walton (Met Office, July 2026, ``addMetadata.py``); this
+script also writes the CMIP ``parent_*`` attrs that ``tipmip_gwl`` expects.
 
-Branch dates are relative to the esm-up2p0 timeline (start reset to 1850),
-except the ramp-up -> piControl link, which is year 2277 of piControl.
+Branch years are on the esm-up2p0 timeline (start reset to 1850), except
+``esm-up2p0`` itself which branches from piControl year 2277.
 
 Usage::
 
     python scripts/patch_ukesm_branch_attrs.py --dry-run
     python scripts/patch_ukesm_branch_attrs.py --apply
-    python scripts/patch_ukesm_branch_attrs.py --apply --tipmip-root ~/Desktop/tipmip/tas
+    python scripts/patch_ukesm_branch_attrs.py --apply --tipmip-root ~/Desktop/tipmip
+    python scripts/patch_ukesm_branch_attrs.py --apply --include-mlotst
 """
 
 from __future__ import annotations
 
 import argparse
 import shutil
-from dataclasses import dataclass
 from pathlib import Path
 
-import cftime
 import netCDF4 as nc
 
-DEFAULT_TIPMIP_ROOT = Path.home() / "Desktop/tipmip/tas"
+DEFAULT_TIPMIP_ROOT = Path.home() / "Desktop/tipmip"
 MODEL = "UKESM1-2-LL"
-SOURCE_ID = "eUKESM1-1-ice-N96ORCA1"
-CALENDAR = "360_day"
+INTERNAL_SOURCE_ID = "eUKESM1-1-ice-N96ORCA1"
+PARENT_SOURCE_ID = INTERNAL_SOURCE_ID
 PARENT_UNITS = "days since 1850-01-01"
 
+# Jeremy Walton, Met Office addMetadata.py (16-07-2026).
+# Keys are CMIP ``experiment_id`` values parsed from the filename.
+JEREMY_BRANCH_YEAR: dict[str, int] = {
+    "esm-piControl": 0,
+    "esm-up2p0": 2277,  # year in parent piControl; esm-up2p0 start reset to 1850
+    "esm-up2p0-gwl2p0": 1944,
+    "esm-up2p0-gwl2p0-50y-dn2p0": 1994,
+    "esm-up2p0-gwl4p0": 2044,
+    "esm-up2p0-gwl4p0-50y-dn2p0": 2094,
+    "esm-up2p0-gwl4p0-50y-dn2p0-gwl2p0": 2232,
+}
 
-@dataclass(frozen=True)
-class BranchPatch:
-    rel_path: str
-    branch_year: int
-    parent_experiment_id: str
-    parent_source_id: str = SOURCE_ID
+PARENT_EXPERIMENT: dict[str, str] = {
+    "esm-up2p0": "esm-piControl",
+    "esm-up2p0-gwl2p0": "esm-up2p0",
+    "esm-up2p0-gwl4p0": "esm-up2p0",
+    "esm-up2p0-gwl2p0-50y-dn2p0": "esm-up2p0-gwl2p0",
+    "esm-up2p0-gwl4p0-50y-dn2p0": "esm-up2p0-gwl4p0",
+    "esm-up2p0-gwl4p0-50y-dn2p0-gwl2p0": "esm-up2p0-gwl4p0-50y-dn2p0",
+}
 
 
-# Met Office branch table (suite cx209 / cy838 / …), July 2025.
-PATCHES: tuple[BranchPatch, ...] = (
-    BranchPatch(
-        "esm-up2p0/gmstmon/tas_Amon_UKESM1-2-LL_esm-up2p0_r1i1p1f1_gn_gmstmon.nc",
-        branch_year=2277,
-        parent_experiment_id="esm-piControl",
-    ),
-    BranchPatch(
-        "esm-up2p0-gwl2p0/gmstmon/tas_Amon_UKESM1-2-LL_esm-up2p0-gwl2p0_r1i1p1f1_gn_gmstmon.nc",
-        branch_year=1944,
-        parent_experiment_id="esm-up2p0",
-    ),
-    BranchPatch(
-        "esm-up2p0-gwl4p0/gmstmon/tas_Amon_UKESM1-2-LL_esm-up2p0-gwl4p0_r1i1p1f1_gn_gmstmon.nc",
-        branch_year=2044,
-        parent_experiment_id="esm-up2p0",
-    ),
-    BranchPatch(
-        "esm-up2p0-gwl2p0-50y-dn2p0/gmstmon/"
-        "tas_Amon_UKESM1-2-LL_esm-up2p0-gwl2p0-50y-dn2p0_r1i1p1f1_gn_gmstmon.nc",
-        branch_year=1994,
-        parent_experiment_id="esm-up2p0-gwl2p0",
-    ),
-)
+def experiment_id_from_filename(path: Path) -> str | None:
+    parts = path.name.split("_")
+    if len(parts) < 4 or parts[2] != MODEL:
+        return None
+    return parts[3]
 
 
 def branch_time_in_parent(branch_year: int) -> float:
-    date = cftime.datetime(branch_year, 1, 1, calendar=CALENDAR)
-    return float(cftime.date2num(date, units=PARENT_UNITS, calendar=CALENDAR))
+    """Match Jeremy's 360-day convention: days since 1850-01-01."""
+    return float((branch_year - 1850) * 360)
 
 
-def attrs_for(patch: BranchPatch) -> dict[str, str | float]:
-    return {
-        "branch_method": "standard",
-        "branch_time_in_parent": branch_time_in_parent(patch.branch_year),
-        "parent_time_units": PARENT_UNITS,
-        "parent_source_id": patch.parent_source_id,
-        "parent_experiment_id": patch.parent_experiment_id,
-        "parent_variant_label": "r1i1p1f1",
-        "parent_activity_id": "CMIP",
+def attrs_for(experiment_id: str) -> dict[str, str | float] | None:
+    if experiment_id not in JEREMY_BRANCH_YEAR:
+        return None
+
+    branch_year = JEREMY_BRANCH_YEAR[experiment_id]
+    out: dict[str, str | float] = {
+        "experiment_id": experiment_id,
+        "source_id": MODEL,
     }
+    if branch_year <= 0:
+        return out
+
+    parent_experiment_id = PARENT_EXPERIMENT.get(experiment_id)
+    if parent_experiment_id is None:
+        return None
+
+    out.update(
+        {
+            "branch_method": "standard",
+            "branch_time_in_parent": branch_time_in_parent(branch_year),
+            "parent_time_units": PARENT_UNITS,
+            "parent_source_id": PARENT_SOURCE_ID,
+            "parent_experiment_id": parent_experiment_id,
+            "parent_variant_label": "r1i1p1f1",
+            "parent_activity_id": "CMIP",
+        }
+    )
+    return out
 
 
-def patch_file(path: Path, patch: BranchPatch, *, apply: bool, backup: bool) -> None:
-    new_attrs = attrs_for(patch)
-    if not path.exists():
-        print(f"  skip (missing): {path}")
+def discover_files(root: Path, *, include_mlotst: bool) -> list[Path]:
+    out: list[Path] = []
+    for path in sorted(root.rglob("*UKESM*.nc")):
+        name = path.name
+        if name.endswith(".bak") or "_original.nc" in name:
+            continue
+        if "_toad" in name or name.endswith("_anomaly.nc"):
+            continue
+        if not include_mlotst and not name.startswith("tas_"):
+            continue
+        exp = experiment_id_from_filename(path)
+        if exp is None or exp not in JEREMY_BRANCH_YEAR:
+            continue
+        out.append(path)
+    return out
+
+
+def patch_file(path: Path, *, apply: bool, backup: bool) -> None:
+    experiment_id = experiment_id_from_filename(path)
+    if experiment_id is None:
+        print(f"  skip (unrecognised name): {path}")
+        return
+
+    new_attrs = attrs_for(experiment_id)
+    if new_attrs is None:
+        print(f"  skip (no patch rule): {path}")
         return
 
     with nc.Dataset(path, "r") as ds:
         old = {
-            "branch_method": getattr(ds, "branch_method", None),
+            "experiment_id": getattr(ds, "experiment_id", None),
+            "source_id": getattr(ds, "source_id", None),
             "branch_time_in_parent": getattr(ds, "branch_time_in_parent", None),
             "parent_experiment_id": getattr(ds, "parent_experiment_id", None),
         }
 
-    print(f"\n{path.relative_to(path.parents[3]) if len(path.parents) > 3 else path.name}")
-    print(f"  branch year {patch.branch_year} <- {patch.parent_experiment_id}")
+    branch_year = JEREMY_BRANCH_YEAR[experiment_id]
+    parent = PARENT_EXPERIMENT.get(experiment_id, "(none)")
+    print(f"\n{path}")
+    print(f"  experiment {experiment_id}; branch year {branch_year} <- {parent}")
     print(f"  was: {old}")
-    print(f"  new branch_time_in_parent={new_attrs['branch_time_in_parent']}")
+    if branch_year > 0:
+        print(f"  new branch_time_in_parent={new_attrs['branch_time_in_parent']}")
+    print(f"  new experiment_id/source_id={new_attrs['experiment_id']}/{new_attrs['source_id']}")
 
     if not apply:
         return
@@ -114,10 +152,7 @@ def patch_file(path: Path, patch: BranchPatch, *, apply: bool, backup: bool) -> 
 
     with nc.Dataset(path, "r+") as ds:
         for key, val in new_attrs.items():
-            if key in ds.ncattrs():
-                ds.setncattr(key, val)
-            else:
-                ds.setncattr(key, val)
+            ds.setncattr(key, val)
     print("  patched")
 
 
@@ -126,6 +161,11 @@ def main() -> None:
     parser.add_argument("--tipmip-root", type=Path, default=DEFAULT_TIPMIP_ROOT)
     parser.add_argument("--apply", action="store_true", help="write attrs (default: dry run)")
     parser.add_argument("--no-backup", action="store_true")
+    parser.add_argument(
+        "--include-mlotst",
+        action="store_true",
+        help="also patch raw mlotst annualmax files (default: tas only)",
+    )
     args = parser.parse_args()
 
     root = args.tipmip_root.expanduser()
@@ -133,13 +173,13 @@ def main() -> None:
     print(f"=== patch_ukesm_branch_attrs ({mode}) ===")
     print(f"tipmip root: {root}")
 
-    for patch in PATCHES:
-        patch_file(
-            root / patch.rel_path,
-            patch,
-            apply=args.apply,
-            backup=not args.no_backup,
-        )
+    files = discover_files(root, include_mlotst=args.include_mlotst)
+    if not files:
+        print("No matching UKESM files found.")
+        return
+
+    for path in files:
+        patch_file(path, apply=args.apply, backup=not args.no_backup)
 
 
 if __name__ == "__main__":

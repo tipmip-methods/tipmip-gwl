@@ -1,8 +1,8 @@
 # HPC scripts (GMSAT / temperature mapping)
 
 Shell helpers for preparing **`gmstmon`** files and pulling them from Levante.
-The mapping algorithm itself lives in `src/tipmip_gwl/`; these scripts are for
-data staging on DKRZ / PIK.
+The mapping algorithm lives in `src/tipmip_gwl/`; these scripts are for data
+staging on DKRZ / PIK.
 
 ## Recommended workflow
 
@@ -16,14 +16,11 @@ sbatch scripts/run_preprocess_levante.slurm
 Or interactively:
 
 ```bash
-tipmip-gwl-preprocess --exp esm-piControl \
+python scripts/build_gmstmon.py --exp esm-piControl \
   --outdir /work/bm1448/analysis/harteg/merged/tas/esm-piControl/gmstmon
 ```
 
-(`--manifest` defaults to the bundled `src/tipmip_gwl/data/tas_chunks.tsv`.)
-
-For ramp-down or ZE-hold legs, use the same command with the appropriate
-`--exp` (paths are already in `tas_chunks.tsv`). See `docs/gmstmon_pipeline.md`.
+(`--manifest` defaults to `scripts/data/tas_chunks.tsv`.)
 
 Copy to laptop (skip PIK for these tiny files):
 
@@ -33,26 +30,30 @@ rsync -avP user@levante.dkrz.de:.../gmstmon/ ~/Desktop/tipmip/tas/esm-piControl/
 
 Optional PIK staging: `pull_gmstmon_pik.sh` + `run_pull_gmstmon.slurm`.
 
-Then build GWL maps and optionally refresh the bundled release snapshot:
+Then build GWL maps:
 
 ```bash
-tipmip-gwl-build --up2p0-dir ... --picontrol-dir ... --outdir mapping/
-python scripts/sync_bundled_mappings.py   # copy ramp-up v1 -> package data
-```
+tipmip-gwl-build --leg ramp-up \
+  --up2p0-dir ... --picontrol-dir ... --outdir mapping/
 
-See **`docs/building_mappings.md`** for the full maintainer workflow.
+# ramp-down (or: tipmip-gwl-build-rampdown --dn-dir ... ...)
+tipmip-gwl-build --leg ramp-down \
+  --dn-dir ... --picontrol-dir ... --outdir mapping/
+```
 
 ## Files
 
 | Script | Where to run | Purpose |
 |--------|--------------|---------|
-| `run_preprocess_levante.slurm` | Levante | Batch `tipmip-gwl-preprocess` for ramp-up + piControl |
+| `build_gmstmon.py` | Levante / local | Merge raw tas chunks → monthly gmstmon |
+| `run_diagnostics.py` | Local | Sanity table for staged ramp-up gmstmon |
+| `run_preprocess_levante.slurm` | Levante | Batch gmstmon build for piControl + ramp-up |
 | `pull_gmstmon_pik.sh` | PIK | Rsync `gmstmon/` from Levante to PIK scratch |
 | `pull_gmstmon_local.sh` | Laptop | Rsync `gmstmon/` from Levante to `~/Desktop/tipmip/tas/` |
-| `patch_ukesm_branch_attrs.py` | Local | Write CMIP branch metadata onto UKESM gmstmon files (see script docstring) |
-| `sync_bundled_mappings.py` | Local | Copy `mapping/gwlmap_*_esm-up2p0_v1.nc` into package data for release |
+| `prepare_rampdown_merge.py` | Local | Build merge lists for ramp-down experiments |
 | `run_pull_gmstmon.slurm` | PIK | Slurm wrapper for the pull script |
+| `sync_bundled_mappings.py` | Local | Copy rebuilt `mapping/` into package data |
 
-Path manifest: **`src/tipmip_gwl/data/tas_chunks.tsv`** — edit when Levante paths move.
+Path manifest: **`scripts/data/tas_chunks.tsv`** — edit when Levante paths move.
 
 Full documentation: **`docs/gmstmon_pipeline.md`**.

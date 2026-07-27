@@ -10,13 +10,15 @@ import numpy as np
 import pytest
 import xarray as xr
 
+from tipmip_gwl import LEG_RAMP_DOWN_2C, LEG_RAMP_DOWN_4C, LEG_RAMP_UP, load_mapping
+from tipmip_gwl.build import build_mapping_dataset
 from tipmip_gwl.product import (
     NotMappable,
-    build_mapping_dataset,
     bundled_mapping_path,
     bundled_mappings_dir,
     list_models,
-    load_mapping,
+    resolve_mapping_path,
+    resample_to_gwl,
 )
 
 CALENDAR = "noleap"
@@ -185,3 +187,63 @@ def test_load_mapping_custom_path(tmp_path):
     custom.write_bytes(src.read_bytes())
     ds = load_mapping("GFDL-ESM2M", path=custom)
     assert ds.attrs["source_id"] == load_mapping("GFDL-ESM2M").attrs["source_id"]
+
+
+def test_load_mapping_ramp_down_leg(tmp_path):
+    up = bundled_mapping_path("GFDL-ESM2M")
+    dn_name = "gwlmap_GFDL-ESM2M_esm-up2p0-gwl2p0-50y-dn2p0_v1.nc"
+    dn_path = tmp_path / dn_name
+    dn_path.write_bytes(up.read_bytes())
+    ds = load_mapping("GFDL-ESM2M", leg=LEG_RAMP_DOWN_2C, mapping_dir=tmp_path)
+    assert ds.attrs.get("source_id") == load_mapping("GFDL-ESM2M").attrs["source_id"]
+
+
+def test_load_mapping_bundled_ramp_down_leg():
+    ds = load_mapping("GFDL-ESM2M", leg=LEG_RAMP_DOWN_2C)
+    assert "year_of_gwl" in ds
+    assert str(ds.attrs.get("leg", "")) == "ramp-down"
+
+
+def test_load_mapping_bundled_ukesm_prefers_standard_dn2c():
+    path = resolve_mapping_path("UKESM1-2-LL", leg=LEG_RAMP_DOWN_2C)
+    assert path.name == "gwlmap_UKESM1-2-LL_esm-up2p0-gwl2p0-50y-dn2p0_v1.nc"
+
+
+def test_list_models_bundled_ramp_down():
+    models = list_models(leg=LEG_RAMP_DOWN_2C)
+    assert len(models) >= 8
+    assert "GFDL-ESM2M" in models
+
+
+def test_load_mapping_noresm_swl_dn_leg(tmp_path):
+    up = bundled_mapping_path("GFDL-ESM2M")
+    dn_name = "gwlmap_NorESM2-LM_esm-up2p0-swl2p0-50y-dn2p0_v1.nc"
+    (tmp_path / dn_name).write_bytes(up.read_bytes())
+    models = list_models(leg=LEG_RAMP_DOWN_2C, mapping_dir=tmp_path)
+    assert models == ["NorESM2-LM"]
+    ds = load_mapping("NorESM2-LM", leg=LEG_RAMP_DOWN_2C, mapping_dir=tmp_path)
+    assert "year_of_gwl" in ds
+
+
+def test_resolve_mapping_path_unknown_leg():
+    with pytest.raises(ValueError, match="unknown leg"):
+        resolve_mapping_path("GFDL-ESM2M", leg="sideways")
+
+
+def test_resample_to_gwl_uses_mapping_gwl_grid():
+    gwl = np.arange(-1.0, 2.0001, 0.5)
+    years = 2000.0 + gwl * 10.0
+    mapping_ds = xr.Dataset(
+        {"year_of_gwl": ("gwl", years.astype(float))},
+        coords={"gwl": gwl.astype(float)},
+    )
+    diag_years = np.arange(1990, 2021)
+    diagnostic = xr.DataArray(
+        diag_years.astype(float) - 1900.0,
+        dims="year",
+        coords={"year": diag_years},
+        name="diag",
+    )
+    out = resample_to_gwl(mapping_ds, diagnostic)
+    np.testing.assert_allclose(out["gwl"].values, gwl)
+    assert float(out.sel(gwl=0.0)) == pytest.approx(100.0)

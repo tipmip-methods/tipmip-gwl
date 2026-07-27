@@ -1,10 +1,11 @@
 """
 Build Table 1 (per-model baseline and robustness diagnostics) as a CSV.
 
-Combines what run_diagnostics already computes (branch year, drift,
-monotonization_max) with the full-vs-window baseline comparison (the same
-computation as baseline_sensitivity.py) into one per-model table, matching the
-SI table in the paper draft.
+Combines branch year, piControl drift, and the full-vs-window baseline
+comparison (the same computation as baseline_sensitivity.py) into one
+per-model table, matching the SI table in the paper draft.
+
+Monotonization diagnostics live in ``table_mono_max.py``.
 
 Usage::
 
@@ -17,11 +18,16 @@ from __future__ import annotations
 
 import argparse
 import csv
+import sys
 from pathlib import Path
 
 import numpy as np
 
-from tipmip_gwl.diagnostics import run_diagnostics
+PAPER_DIR = Path(__file__).resolve().parent
+REPO_ROOT = PAPER_DIR.parent
+sys.path.insert(0, str(REPO_ROOT / "scripts"))
+
+from run_diagnostics import run_diagnostics
 
 DEFAULT_OUT_CSV = Path(__file__).resolve().parent / "tables" / "table1.csv"
 
@@ -33,7 +39,6 @@ FIELDNAMES = (
     "ref_full_K",
     "ref_window_K",
     "abs_dref_K",
-    "mono_max_degC",
     "note",
 )
 
@@ -41,6 +46,7 @@ FIELDNAMES = (
 def _r3(x):
     """Round to three decimals; pass through None."""
     return None if x is None else round(float(x), 3)
+
 
 def _baseline_note(d, window=31):
     """Note when the published baseline could not use a branch-window mean."""
@@ -50,6 +56,18 @@ def _baseline_note(d, window=31):
     if not (d.pi_years.min() <= branch <= d.pi_years.max()):
         return "branch year out of range"
     return ""
+
+
+def model_order_by_ref_full(up2p0_dir, picontrol_dir, window=31) -> list[str]:
+    """Return model ids sorted by ascending full piControl GMSAT (Table A1 / Fig. 3)."""
+    diags = run_diagnostics(up2p0_dir, picontrol_dir, window=window)
+    pairs = [
+        (d.pi_reference_full, d.model)
+        for d in diags
+        if d.pi_years is not None and np.isfinite(d.pi_reference_full)
+    ]
+    pairs.sort(key=lambda x: x[0])
+    return [model for _, model in pairs]
 
 
 def main(up2p0_dir, picontrol_dir, window=31, out_csv=None):
@@ -73,17 +91,17 @@ def main(up2p0_dir, picontrol_dir, window=31, out_csv=None):
                 "ref_full_K": _r3(ref_full),
                 "ref_window_K": _r3(ref_win),
                 "abs_dref_K": _r3(d_ref),
-                "mono_max_degC": _r3(d.monotonization_max),
                 "note": note or "",
             }
         )
 
     # Same order as Figure 3 (mean_tas_piControl.py): ascending full piControl mean.
-    rows.sort(key=lambda r: r["ref_full_K"])
+    order = model_order_by_ref_full(up2p0_dir, picontrol_dir, window=window)
+    rows.sort(key=lambda r: order.index(r["model"]))
 
     hdr = (
         f"{'model':<22} {'branch':>7} {'picontrol':>11} {'drift':>8} {'ref_full':>9} "
-        f"{'ref_win':>9} {'dref':>7} {'mono_max':>9}  note"
+        f"{'ref_win':>9} {'dref':>7}  note"
     )
     print(hdr)
     print("-" * len(hdr))
@@ -98,14 +116,12 @@ def main(up2p0_dir, picontrol_dir, window=31, out_csv=None):
         print(
             f"{r['model']:<22} {by:>7} {r['picontrol_range']:>11} "
             f"{r['picontrol_drift_degC_per_cy']:+8.3f} "
-            f"{r['ref_full_K']:9.3f} {rw:>9} {dr:>10} "
-            f"{r['mono_max_degC']:9.3f}  {r['note']}"
+            f"{r['ref_full_K']:9.3f} {rw:>9} {dr:>10}  {r['note']}"
         )
 
     tested = [r["abs_dref_K"] for r in rows if r["abs_dref_K"] is not None]
     if tested:
         print(f"\nmax |dref| = {max(tested):.3f} K across {len(tested)} tested models")
-    print(f"mono_max <= {max(r['mono_max_degC'] for r in rows):.3f} degC for all models")
 
     out_csv = Path(out_csv) if out_csv else DEFAULT_OUT_CSV
     out_csv.parent.mkdir(parents=True, exist_ok=True)

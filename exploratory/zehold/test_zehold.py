@@ -4,14 +4,23 @@ Uses small synthetic NetCDF files (not real TIPMIP data). Unlike the ramp-up/
 ramp-down products, this leg is never monotonized and ships no year_of_gwl or
 common gwl grid -- these tests check that structural difference directly,
 plus the provenance and drift-diagnostic behaviour specific to this leg.
+
+Run from the repo root::
+
+    pytest exploratory/zehold/test_zehold.py
 """
+
+import sys
+from pathlib import Path
 
 import numpy as np
 import pytest
 import xarray as xr
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from zehold import _parse_target_gwl, build_ze_mapping_dataset, write_ze_mapping
 from tipmip_gwl.product import NotMappable
-from tipmip_gwl.zehold import _parse_target_gwl, build_ze_mapping_dataset, write_ze_mapping
 
 CALENDAR = "noleap"
 
@@ -61,12 +70,9 @@ def test_parse_target_gwl_all_naming_conventions():
 
 
 def test_zehold_no_monotonization_wander_is_preserved(tmp_path, pi_control_file):
-    # A hold that warms a bit then cools -- the wander must survive, not be
-    # flattened into a monotone trend the way ramp-up/ramp-down would.
     ze_path = tmp_path / "ze.nc"
     n_years = 50
     years_frac = np.arange(n_years * 12) / 12.0
-    # up for the first half, down for the second half (a triangle wave)
     wobble = np.where(years_frac < 25, years_frac * 0.02, (50 - years_frac) * 0.02)
     time = xr.date_range("2000-01-01", periods=n_years * 12, freq="MS", calendar=CALENDAR, use_cftime=True)
     tas = 288.5 + wobble
@@ -85,7 +91,6 @@ def test_zehold_no_monotonization_wander_is_preserved(tmp_path, pi_control_file)
 
     out = build_ze_mapping_dataset("WOBBLE-ESM", ze_path, pi_control_file, window=11)
     gwl_axis = out["gwl_axis"].values
-    # rises then falls: NOT monotone in either direction
     assert not np.all(np.diff(gwl_axis) >= -1e-9)
     assert not np.all(np.diff(gwl_axis) <= 1e-9)
     assert "year_of_gwl" not in out
@@ -120,7 +125,7 @@ def test_zehold_net_drift_sign_and_magnitude(tmp_path, pi_control_file):
         start_year=2000,
         n_years=50,
         mean=288.5,
-        trend_per_year=0.01,  # steady continued warming over the hold
+        trend_per_year=0.01,
         attrs={
             "source_id": "WARMING-HOLD",
             "experiment_id": "esm-up2p0-gwl2p0",
@@ -133,9 +138,6 @@ def test_zehold_net_drift_sign_and_magnitude(tmp_path, pi_control_file):
 
 
 def test_zehold_parent_is_rampup_not_flagged(tmp_path, pi_control_file):
-    # Normal case: parent_experiment_id == esm-up2p0 -- no provenance warning
-    # about the parent chain (the ramp-down leg's equivalent warning does NOT
-    # apply here, since esm-up2p0 IS the expected parent for this leg).
     ze_path = tmp_path / "ze.nc"
     _write_monthly_tas(
         ze_path,
@@ -158,8 +160,6 @@ def test_zehold_parent_is_rampup_not_flagged(tmp_path, pi_control_file):
 
 
 def test_zehold_unexpected_parent_is_flagged(tmp_path, pi_control_file):
-    # Mirrors NorESM2-LM's quirk: parent_experiment_id is piControl, not
-    # esm-up2p0, for this leg too. Must map (not raise), flagged as a warning.
     ze_path = tmp_path / "ze.nc"
     _write_monthly_tas(
         ze_path,
@@ -182,7 +182,6 @@ def test_zehold_unexpected_parent_is_flagged(tmp_path, pi_control_file):
 
 
 def test_zehold_no_parent_declared_still_maps(tmp_path, pi_control_file):
-    # Mirrors the UKESM case: TerraFIRMA file, no parent linkage at all.
     ze_path = tmp_path / "ze.nc"
     _write_monthly_tas(
         ze_path,

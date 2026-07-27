@@ -1,14 +1,12 @@
 """Combined ramp-up + zero-emission-hold + ramp-down GMSAT trajectory, per model.
 
-Stitches all three mapping products onto one shared calendar-year x-axis per
-model, using the ramp-up file's start year as the zero point. A model needs
-only a ramp-up mapping file to be plotted; ramp-down and ZE-hold legs are
-overlaid whenever present.
+Exploratory QA figure — not part of the v1 GMD paper. Stitches all three mapping
+products onto one shared calendar-year x-axis per model, using the ramp-up
+file's start year as the zero point.
 
 Usage::
 
-    python paper/plot_up_down_trajectory.py --mapping-dir mapping \\
-        --out paper/figures/up_down_trajectory_preview.png
+    python exploratory/zehold/plot_trajectory.py --mapping-dir mapping
 """
 
 from __future__ import annotations
@@ -21,12 +19,36 @@ import xarray as xr
 
 from tipmip_gwl.io import model_label
 
-PAPER_DIR = Path(__file__).resolve().parent
-DEFAULT_MAPPING_DIR = PAPER_DIR.parent / "mapping"
-DEFAULT_OUT = PAPER_DIR / "figures/up_down_trajectory_preview.png"
+EXPLORATORY_DIR = Path(__file__).resolve().parent
+REPO_ROOT = EXPLORATORY_DIR.parents[1]
+DEFAULT_MAPPING_DIR = REPO_ROOT / "mapping"
+DEFAULT_OUT = EXPLORATORY_DIR / "figures" / "up_down_trajectory_preview.png"
 
 UP_COLOR = "tab:red"
-DN_COLOR = "tab:blue"
+DN_COLOR_BY_HOLD = {2.0: "tab:blue", 4.0: "tab:cyan"}
+DN_COLOR_FALLBACK = ["tab:blue", "tab:cyan", "tab:teal"]
+
+
+def _dn_hold_target(path: Path) -> float:
+    name = path.name.lower()
+    if "gwl4p0" in name or "swl4p0" in name:
+        return 4.0
+    return 2.0
+
+
+def _dn_color(target: float, fallback_used: dict) -> str:
+    key = round(target, 2)
+    if key in DN_COLOR_BY_HOLD:
+        return DN_COLOR_BY_HOLD[key]
+    if key not in fallback_used:
+        idx = len(fallback_used) % len(DN_COLOR_FALLBACK)
+        fallback_used[key] = DN_COLOR_FALLBACK[idx]
+    return fallback_used[key]
+
+
+def _dn_label(target: float) -> str:
+    return f"ramp-down ({target:g}\N{DEGREE SIGN}C hold)"
+
 ZE_COLOR_BY_TARGET = {2.0: "tab:orange", 4.0: "tab:brown"}
 ZE_COLOR_FALLBACK = ["tab:olive", "tab:purple", "tab:pink", "tab:gray"]
 
@@ -42,9 +64,9 @@ def _discover_legs(mapping_dir: Path) -> dict[str, dict]:
         with xr.open_dataset(p) as ds:
             mid = model_label(dict(ds.attrs))
             leg = _leg_of(ds)
-        entry = by_model.setdefault(mid, {"up": None, "down": None, "ze": []})
+        entry = by_model.setdefault(mid, {"up": None, "down": [], "ze": []})
         if leg == "ramp-down":
-            entry["down"] = p
+            entry["down"].append(p)
         elif leg == "ze-hold":
             entry["ze"].append(p)
         else:
@@ -85,7 +107,8 @@ def main(mapping_dir=None, out=None) -> Path:
     y_min, y_max = np.inf, -np.inf
     have_down = False
     ze_targets_seen: set[float] = set()
-    fallback_used: dict = {}
+    ze_fallback: dict = {}
+    dn_fallback: dict = {}
 
     for ax_idx, (ax, model) in enumerate(zip(axes.flat, models)):
         entry = legs[model]
@@ -100,7 +123,7 @@ def main(mapping_dir=None, out=None) -> Path:
         for ze_path in sorted(entry["ze"]):
             with xr.open_dataset(ze_path) as ze:
                 target = float(ze["target_gwl"].values)
-                color = _ze_color(target, fallback_used)
+                color = _ze_color(target, ze_fallback)
                 ze_targets_seen.add(round(target, 2) if np.isfinite(target) else -999.0)
                 x_ze = ze["year"].values - up_year0
                 ax.plot(x_ze, ze["gmsat_anomaly"].values, lw=0.7, alpha=0.35, color=color)
@@ -114,12 +137,20 @@ def main(mapping_dir=None, out=None) -> Path:
                 y_min = min(y_min, float(np.nanmin(ze["gwl_axis"].values)))
                 y_max = max(y_max, float(np.nanmax(ze["gwl_axis"].values)))
 
-        if entry["down"] is not None:
+        for dn_path in sorted(entry["down"], key=_dn_hold_target):
             have_down = True
-            with xr.open_dataset(entry["down"]) as dn:
+            target = _dn_hold_target(dn_path)
+            color = _dn_color(target, dn_fallback)
+            with xr.open_dataset(dn_path) as dn:
                 x_dn = dn["year"].values - up_year0
-                ax.plot(x_dn, dn["gmsat_anomaly"].values, lw=0.7, alpha=0.35, color=DN_COLOR)
-                ax.plot(x_dn, dn["gwl_axis"].values, lw=1.8, color=DN_COLOR, label="ramp-down")
+                ax.plot(x_dn, dn["gmsat_anomaly"].values, lw=0.7, alpha=0.35, color=color)
+                ax.plot(
+                    x_dn,
+                    dn["gwl_axis"].values,
+                    lw=1.8,
+                    color=color,
+                    label=_dn_label(target),
+                )
                 y_min = min(y_min, float(np.nanmin(dn["gwl_axis"].values)))
                 y_max = max(y_max, float(np.nanmax(dn["gwl_axis"].values)))
 

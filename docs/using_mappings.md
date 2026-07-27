@@ -16,21 +16,39 @@ print(list_models())
 mp = load_mapping("GFDL-ESM2M")
 ```
 
-To use a locally rebuilt file instead:
+**Ramp-down** (bundled alongside ramp-up; use `leg=` to select):
 
 ```python
-mp = load_mapping("GFDL-ESM2M", path="mapping/gwlmap_GFDL-ESM2M_esm-up2p0_v1.nc")
-# or: mp = xr.open_dataset("...")
+mp_dn2 = load_mapping("GFDL-ESM2M", leg="ramp-down-2c")
+mp_dn4 = load_mapping("GFDL-ESM2M", leg="ramp-down-4c")
+print(list_models(leg="ramp-down-2c"))
 ```
+
+To use locally rebuilt files instead of the bundled snapshot, pass
+`mapping_dir="mapping/"`.
+
+Long CMIP experiment ids and explicit `path=` are optional escape hatches.
+
+To use a locally rebuilt ramp-up file instead:
+
+```python
+mp = load_mapping("GFDL-ESM2M", mapping_dir="mapping/")
+# or: mp = load_mapping("GFDL-ESM2M", path="mapping/gwlmap_GFDL-ESM2M_esm-up2p0_v1.nc")
+```
+
+**Important:** same GWL on the ramp-up and ramp-down legs is a **different**
+Earth-system state. Tag analyses by leg; do not stack up and down at the same GWL
+as if they were interchangeable.
 
 ## Continuous diagnostics: two transforms
 
 There are two GWL transforms, depending on whether you want a **shared** axis or
 each model's **own** axis:
 
-1. **`resample_to_gwl`** — resample onto the common 0–4 °C grid (0.02 °C steps,
-   shared across models). Uses the inverse `year_of_gwl(gwl)`. Use this to
-   **stack or compare models** at the same warming level.
+1. **`resample_to_gwl`** — resample onto the mapping's common GWL grid (0–4 °C
+   at 0.02 °C steps for ramp-up; roughly −1.5–2.5 °C for ramp-down). Uses the
+   inverse `year_of_gwl(gwl)`. Use this to **stack or compare models** at the
+   same warming level on one leg.
 2. **`relabel_to_gwl`** — relabel a model's native time axis with continuous GWL
    (uneven, unbinned). Uses the forward `gwl_axis(year)`. Use this to **plot a
    single model** against GWL without losing temporal resolution.
@@ -76,7 +94,8 @@ print(ensemble.mean("model"))
 print(ensemble.std("model"))
 ```
 
-See also `examples/resample_diagnostic.py` for a minimal runnable tutorial.
+See also [examples/resample_diagnostic.ipynb](../examples/resample_diagnostic.ipynb)
+for a minimal runnable tutorial.
 
 ### `relabel_to_gwl` — native axis
 

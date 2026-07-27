@@ -7,6 +7,9 @@ plateau between the ramp-up and ramp-down legs, held at a nominal target GWL
 as NorESM2-LM's ``esm-up2p0-swl2p0``/``swl4p0`` or UKESM's TerraFIRMA
 ``ZE-Up-2p0``/``ZE-Up-4p0``).
 
+Exploratory code — not installed with ``pip install tipmip-gwl``. See
+``exploratory/zehold/README.md``.
+
 This is a genuinely different product from ``product.py``/``rampdown.py``,
 not a third copy of the same schema:
 
@@ -33,7 +36,7 @@ not a third copy of the same schema:
   recorded as informational provenance (never used for the baseline, which
   inherits the ramp-up mapping product's baseline when available).
 
-Dependencies: numpy, xarray, and the sibling :mod:`tipmip_gwl` modules.
+Dependencies: numpy, xarray, and :mod:`tipmip_gwl`.
 """
 
 from __future__ import annotations
@@ -46,10 +49,16 @@ from pathlib import Path
 import numpy as np
 import xarray as xr
 
-from . import baseline as bl
-from . import mapping
-from .io import discover, load_gmsat_nc, read_attrs
-from .product import NotMappable, _git_revision, _package_version, resolve_secondary_leg_baseline
+from tipmip_gwl import baseline as bl
+from tipmip_gwl import mapping
+from tipmip_gwl.io import discover, load_gmsat_nc, read_attrs
+from tipmip_gwl.build import (
+    NotMappable,
+    _git_revision,
+    _package_version,
+    resolve_secondary_leg_baseline,
+)
+from tipmip_gwl.product import relabel_to_gwl
 
 # 50-year holds spend most of a 31-yr centred window in the edge-shrunk regime
 # (see mapping.running_mean); this is closer to the "mostly full window"

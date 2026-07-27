@@ -1,12 +1,8 @@
 """
-plotting.py
-===========
-Diagnostic figures for the time->GWL mapping. Both functions take the list of
-``ModelDiag`` records produced by :func:`tipmip_gwl.diagnostics.run_diagnostics`
-(only their attributes are used, so there is no import dependency on the driver).
+Diagnostic figures for the time->GWL mapping (paper reproduction).
 
-Matplotlib is imported lazily so the rest of the package has no hard dependency
-on it; install with the ``plot`` extra to use these.
+Takes the list of ``ModelDiag`` records from
+:func:`run_diagnostics` from ``scripts/run_diagnostics.py``. Requires matplotlib.
 """
 
 from __future__ import annotations
@@ -22,15 +18,7 @@ BRANCH_WINDOW = 31
 
 
 def _branch_window_pi(pi_years, pi_gmsat, branch_year, *, window: int = BRANCH_WINDOW):
-    """Return (window_mean, win_lo, win_hi, note) for piControl baseline panels.
-
-    Uses the same rules as :func:`tipmip_gwl.baseline.branch_window_reference`:
-    centred ``window`` at ``branch_year``, trailing first ``window`` years when
-    the centred window would start before piControl (ACCESS-ESM1-5). Returns
-    ``(nan, nan, nan, note)`` when the branch year is missing or outside the
-    staged piControl span (NorESM2-LM).
-    """
-    from .baseline import branch_window_reference
+    from tipmip_gwl.baseline import branch_window_reference
 
     if branch_year is None or not np.isfinite(branch_year):
         return np.nan, np.nan, np.nan, "no branch year"
@@ -60,28 +48,11 @@ def _branch_window_pi(pi_years, pi_gmsat, branch_year, *, window: int = BRANCH_W
     return ref, win_lo, win_hi, note
 
 
-def _trim_to_gwl_window(t, *series, lo=GWL_PLOT_LO, hi=GWL_PLOT_HI):
-    """Keep the contiguous segment where the first series lies in ``[lo, hi]``."""
-    t = np.asarray(t, float)
-    ref = np.asarray(series[0], float)
-    in_range = (ref >= lo) & (ref <= hi)
-    if not in_range.any():
-        empty = t[:0]
-        return (empty,) + tuple(np.asarray(s, float)[:0] for s in series)
-    i0, i1 = np.where(in_range)[0][[0, -1]]
-    sl = slice(int(i0), int(i1) + 1)
-    return (t[sl],) + tuple(np.asarray(s, float)[sl] for s in series)
+def plot_diagnostics(diags, outdir, *, model_colors=None, rampup=True, picontrol=True):
+    """Diagnostic figures written to ``outdir``.
 
-
-def plot_diagnostics(diags, outdir):
-    """Two diagnostic figures written to ``outdir``:
-
-    rampup_anomaly.png   -- ramp-up GWL vs years-since-start (0--4 degC window),
-        all models overlaid (thin = annual anomaly, thick = monotone axis).
-    picontrol_baseline.png -- one panel per model: piControl GMSAT with the
-        published 31-yr branch-window baseline (solid), full-run mean (dashed),
-        branch year (vertical line), and shaded reference window; NorESM2-LM
-        omits the window when the branch year lies outside staged piControl.
+    When ``rampup`` is True, writes rampup_anomaly.png. When ``picontrol`` is
+    True, writes picontrol_baseline.png. Returns ``(rampup_path, picontrol_path)``.
     """
     import matplotlib
 
@@ -93,43 +64,53 @@ def plot_diagnostics(diags, outdir):
 
     plt.rcParams["axes.prop_cycle"] = plt.cycler(color=plt.cm.Dark2.colors)
 
-    # --- Figure A: ramp-up GWL overlay (0--4 degC mapping window) --------------
-    figA, axA = plt.subplots(figsize=(9, 6))
-    plotted = [d for d in diags if d.ru_years is not None and d.ru_anom is not None]
-    t_max = 0.0
-    for d in plotted:
-        t = d.ru_years - d.ru_years[0]
-        # No longer trim to GWL window: plot entire time series
-        gwl_axis = d.ru_taxis
-        gwl_anom = d.ru_anom
-        if t.size == 0:
-            continue
-        t_max = max(t_max, float(t[-1]))
-        (line,) = axA.plot(t, gwl_axis, lw=2, label=f"{d.model}")
-        axA.plot(t, gwl_anom, lw=0.8, alpha=0.35, color=line.get_color())
-    axA.axhline(0.0, color="k", lw=0.6, alpha=0.2)
-    axA.axhline(4.0, color="k", lw=0.6, alpha=0.2)
-    xs = np.array([0.0, min(t_max, GWL_PLOT_HI / 0.02)])
-    axA.plot(
-        xs,
-        0.02 * xs,
-        color="0.3",
-        ls="--",
-        lw=1.2,
-        label="2 °C/century",
-    )
-    axA.set_xlabel("Years since ramp-up start")
-    axA.set_ylabel(r"GWL ($\degree$C)")
-    axA.set_ylim(*GWL_YLIM)
-    axA.set_xlim(-5, 220)  # roughly where we reach 4 degC
-    axA.legend(ncol=2, framealpha=0.0, loc="upper left", bbox_to_anchor=(0, 0.96))
-    figA.tight_layout()
-    pathA = outdir / "rampup_anomaly.png"
-    figA.savefig(pathA, dpi=300)
-    plt.close(figA)
+    pathA = None
+    if rampup:
+        figA, axA = plt.subplots(figsize=(9, 6))
+        plotted = [d for d in diags if d.ru_years is not None and d.ru_anom is not None]
+        t_max = 0.0
+        model_colors = model_colors or {}
+        for d in plotted:
+            t = d.ru_years - d.ru_years[0]
+            gwl_axis = d.ru_taxis
+            gwl_anom = d.ru_anom
+            if t.size == 0:
+                continue
+            t_max = max(t_max, float(t[-1]))
+            color = model_colors.get(d.model)
+            if color:
+                axA.plot(t, gwl_axis, lw=2, label=f"{d.model}", color=color)
+                axA.plot(t, gwl_anom, lw=0.8, alpha=0.35, color=color)
+            else:
+                (line,) = axA.plot(t, gwl_axis, lw=2, label=f"{d.model}")
+                axA.plot(t, gwl_anom, lw=0.8, alpha=0.35, color=line.get_color())
+        axA.axhline(0.0, color="k", lw=0.6, alpha=0.2)
+        axA.axhline(4.0, color="k", lw=0.6, alpha=0.2)
+        xs = np.array([0.0, min(t_max, GWL_PLOT_HI / 0.02)])
+        axA.plot(
+            xs,
+            0.02 * xs,
+            color="0.3",
+            ls="--",
+            lw=1.2,
+            label="2 °C/century",
+        )
+        axA.set_xlabel("Years since ramp-up start")
+        axA.set_ylabel(r"GWL ($\degree$C)")
+        axA.set_ylim(*GWL_YLIM)
+        axA.set_xlim(-5, 220)
+        axA.legend(ncol=2, framealpha=0.0, loc="upper left", bbox_to_anchor=(0, 0.96))
+        figA.tight_layout()
+        pathA = outdir / "rampup_anomaly.png"
+        figA.savefig(pathA, dpi=300)
+        plt.close(figA)
 
-    # --- Figure B: piControl panels -------------------------------------------
-    pmodels = [d for d in diags if d.pi_years is not None]
+    pathB = None
+    if picontrol:
+        pmodels = [d for d in diags if d.pi_years is not None]
+    else:
+        pmodels = []
+
     if pmodels:
         from matplotlib.lines import Line2D
         from matplotlib.ticker import MaxNLocator
@@ -140,7 +121,6 @@ def plot_diagnostics(diags, outdir):
         ncol = 4
         nrow = int(np.ceil(len(pmodels) / ncol))
 
-        # --- Find global min/max for y-axis sharing
         y_mins = [np.nanmin(d.pi_gmsat) for d in pmodels]
         y_maxs = [np.nanmax(d.pi_gmsat) for d in pmodels]
         try:
@@ -295,7 +275,5 @@ def plot_diagnostics(diags, outdir):
         pathB = outdir / "picontrol_baseline.png"
         figB.savefig(pathB, dpi=300, bbox_inches="tight")
         plt.close(figB)
-    else:
-        pathB = None
 
     return pathA, pathB

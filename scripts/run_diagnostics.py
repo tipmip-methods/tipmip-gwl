@@ -1,27 +1,23 @@
+#!/usr/bin/env python3
 """
-diagnostics.py
-==============
-The user-facing driver. It loops over a directory of ramp-up files, pairs each
-with its piControl, and runs the full sanity check: provenance gate, branch-year
-decode, protocol baseline (with drift), and the monotone temperature axis. The
-result is a list of :class:`ModelDiag` records that :func:`print_table` and
-:func:`tipmip_gwl.plotting.plot_diagnostics` consume.
+Sanity-table driver for staged ramp-up gmstmon files.
 
-This is also the command-line entry point (``tipmip-gwl-diagnostics``).
-
-Dependencies: numpy, and the sibling :mod:`tipmip_gwl` modules.
+Maintainer script — not part of the installed user API. For diagnostic figures see
+``paper/plot_diagnostics.py`` / ``paper/figures_1_2.py``.
 """
 
 from __future__ import annotations
 
 import argparse
+import sys
 from dataclasses import dataclass, field
 
 import numpy as np
 
-from . import baseline as bl
-from . import mapping
-from .io import discover, load_gmsat_nc, read_attrs
+from tipmip_gwl import baseline as bl
+from tipmip_gwl import mapping
+from tipmip_gwl.build import NotMappable, compute_rampup_leg
+from tipmip_gwl.io import discover, load_gmsat_nc, read_attrs
 
 
 @dataclass
@@ -37,7 +33,6 @@ class ModelDiag:
     monotonization_max: float
     parent: str
     warnings: list = field(default_factory=list)
-    # series retained for plotting (None when not computed, e.g. no piControl)
     ru_years: np.ndarray | None = field(default=None, repr=False)
     ru_anom: np.ndarray | None = field(default=None, repr=False)
     ru_taxis: np.ndarray | None = field(default=None, repr=False)
@@ -54,14 +49,14 @@ def run_diagnostics(up2p0_dir, picontrol_dir, window=31, detrend=False):
     diags = []
 
     for model in sorted(ru_files):
-        warns = []
+        warns: list[str] = []
         ru_path = ru_files[model]
         pi_path = pi_files.get(model)
 
         ru_attrs = read_attrs(ru_path)
         warns.extend(bl.provenance_warnings(ru_attrs))
 
-        ru_years, ru_gmsat = load_gmsat_nc(ru_path)
+        ru_years, _ru_gmsat = load_gmsat_nc(ru_path)
         bi = bl.branch_year_from_attrs(ru_attrs)
         known = bl.KNOWN_BRANCH_YEARS.get(model)
 
@@ -95,71 +90,64 @@ def run_diagnostics(up2p0_dir, picontrol_dir, window=31, detrend=False):
             )
             continue
 
-        pi_years, pi_gmsat = load_gmsat_nc(pi_path)
-        branch = None
         try:
-            branch, branch_warns = bl.resolve_branch_year(bi, model, ru_years, pi_years)
-            warns.extend(branch_warns)
-        except ValueError as exc:
+            leg = compute_rampup_leg(
+                model, ru_path, pi_path, window=window, detrend=detrend,
+            )
+        except NotMappable as exc:
             warns.append(str(exc))
+            diags.append(
+                ModelDiag(
+                    model,
+                    bi.year,
+                    known,
+                    "none",
+                    np.nan,
+                    np.nan,
+                    np.nan,
+                    np.nan,
+                    np.nan,
+                    parent,
+                    warns,
+                )
+            )
+            continue
 
-        base = bl.compute_baseline(
-            pi_years,
-            pi_gmsat,
-            branch,
-            detrend=detrend,
-            window=window,
-        )
+        warns.extend(leg.warns)
         pi_reference_full = mapping.picontrol_reference(
-            pi_years, pi_gmsat, branch, detrend=detrend
+            leg.pi_years, leg.pi_gmsat, leg.branch, detrend=detrend
         )
         if (
-            np.isfinite(base.drift_degC_per_century)
-            and abs(base.drift_degC_per_century) > 0.5
+            np.isfinite(leg.base.drift_degC_per_century)
+            and abs(leg.base.drift_degC_per_century) > 0.5
         ):
             warns.append(
-                f"piControl drift {base.drift_degC_per_century:+.2f} "
+                f"piControl drift {leg.base.drift_degC_per_century:+.2f} "
                 "degC/century exceeds 0.5 (baseline sensitive; consider --detrend-pi)"
             )
 
-        cfg = mapping.MappingConfig(
-            window=window, method="running_mean", detrend_pi=detrend
-        )
-        mm = mapping.map_model(
-            model,
-            ru_years,
-            ru_gmsat,
-            pi_years,
-            pi_gmsat,
-            branch,
-            cfg=cfg,
-            pi_reference=base.reference,
-        )
-        anom = mm.anom
-        T_axis = mm.T_axis
-        rep = mm.diagnostics
-
+        mm = leg.mm
         diags.append(
             ModelDiag(
                 model=model,
                 branch_year=bi.year,
                 branch_known=known,
-                baseline_method=base.method,
-                pi_reference=base.reference,
+                baseline_method=leg.base.method,
+                pi_reference=leg.base.reference,
                 pi_reference_full=pi_reference_full,
-                pi_drift=base.drift_degC_per_century,
-                max_gwl=float(np.nanmax(T_axis)),
-                monotonization_max=rep["monotonization_max_degC"],
+                pi_drift=leg.base.drift_degC_per_century,
+                max_gwl=float(np.nanmax(mm.T_axis)),
+                monotonization_max=mm.diagnostics["monotonization_max_degC"],
                 parent=parent,
                 warnings=warns,
-                ru_years=ru_years,
-                ru_anom=anom,
-                ru_taxis=T_axis,
-                pi_years=pi_years,
-                pi_gmsat=pi_gmsat,
-                branch_used=float(branch) if branch is not None else None,
-                base_span_lo=base.span[0],
-                base_span_hi=base.span[1],
+                ru_years=leg.ru_years,
+                ru_anom=mm.anom,
+                ru_taxis=mm.T_axis,
+                pi_years=leg.pi_years,
+                pi_gmsat=leg.pi_gmsat,
+                branch_used=float(leg.branch) if leg.branch is not None else None,
+                base_span_lo=leg.base.span[0],
+                base_span_hi=leg.base.span[1],
             )
         )
 
@@ -201,32 +189,12 @@ def print_table(diags):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(
-        description="TIPMIP time->GWL baseline diagnostics for a set of "
-        "global-mean tas NetCDF files."
+        description="TIPMIP time->GWL baseline diagnostics for staged gmstmon files."
     )
-    parser.add_argument(
-        "--up2p0-dir",
-        required=True,
-        help="directory of ramp-up (esm-up2p0) global-mean tas .nc files",
-    )
-    parser.add_argument(
-        "--picontrol-dir",
-        required=True,
-        help="directory of piControl global-mean tas .nc files",
-    )
-    parser.add_argument(
-        "--window",
-        type=int,
-        default=31,
-        help="smoothing window (years) for the GWL axis",
-    )
+    parser.add_argument("--up2p0-dir", required=True)
+    parser.add_argument("--picontrol-dir", required=True)
+    parser.add_argument("--window", type=int, default=31)
     parser.add_argument("--detrend-pi", action="store_true")
-    parser.add_argument("--plot", action="store_true", help="write diagnostic figures")
-    parser.add_argument(
-        "--plotdir",
-        default="./figures",
-        help="output dir for figures (with --plot); default ./figures",
-    )
     args = parser.parse_args(argv)
 
     diags = run_diagnostics(
@@ -237,14 +205,6 @@ def main(argv=None):
     )
     print_table(diags)
 
-    if args.plot:
-        from .plotting import plot_diagnostics
-
-        pathA, pathB = plot_diagnostics(diags, args.plotdir)
-        print(f"\nwrote {pathA}")
-        if pathB:
-            print(f"wrote {pathB}")
-
 
 if __name__ == "__main__":
-    main()
+    main(sys.argv[1:])

@@ -4,7 +4,7 @@ How we prepare **global-mean surface air temperature (GMSAT)** for TIPMIP analys
 This is the archive preprocessing stage of **Step 1 (anomaly computation)** in
 the mapping pipeline.
 
-**Tool:** `tipmip-gwl-preprocess` + bundled path list `src/tipmip_gwl/data/tas_chunks.tsv`.
+**Tool:** `python scripts/build_gmstmon.py` + bundled path list `scripts/data/tas_chunks.tsv`.
 
 **Downstream:** after gmstmon is staged, build mappings with
 [building_mappings.md](building_mappings.md). End users who only resample their
@@ -36,7 +36,7 @@ The **annual** GMSAT (days-in-month weighted) is applied automatically on read b
 
 ## Path manifest (`tas_chunks.tsv`)
 
-Chunk paths on Levante are listed in **`src/tipmip_gwl/data/tas_chunks.tsv`** — one
+Chunk paths on Levante are listed in **`scripts/data/tas_chunks.tsv`** — one
 row per time chunk:
 
 ```text
@@ -53,7 +53,7 @@ When Levante paths move, edit this file and re-run preprocess — no inventory s
 
 ```bash
 conda activate toad312
-pip install -e ".[plot]"
+pip install -e ".[paper]"
 ```
 
 ### Batch (all models, one experiment)
@@ -61,7 +61,7 @@ pip install -e ".[plot]"
 On **Levante**:
 
 ```bash
-tipmip-gwl-preprocess \
+python scripts/build_gmstmon.py \
   --exp esm-piControl \
   --outdir /work/bm1448/analysis/harteg/merged/tas/esm-piControl/gmstmon
 ```
@@ -79,7 +79,7 @@ rsync -avP user@levante.dkrz.de:.../gmstmon/ ~/Desktop/tipmip/tas/esm-piControl/
 ### One model
 
 ```bash
-tipmip-gwl-preprocess \
+python scripts/build_gmstmon.py \
   --exp esm-piControl \
   --models ACCESS-ESM1-5 \
   --outdir ./gmstmon
@@ -88,7 +88,7 @@ tipmip-gwl-preprocess \
 ### One-off from explicit paths
 
 ```bash
-tipmip-gwl-preprocess \
+python scripts/build_gmstmon.py \
   --chunks /path/to/chunk1.nc /path/to/chunk2.nc \
   --out ~/Desktop/tipmip/tas/esm-piControl/gmstmon/tas_Amon_ACCESS-ESM1-5_esm-piControl_r1i1p1f1_gn_gmstmon.nc
 ```
@@ -105,10 +105,13 @@ staged tas — [paper_figures.md](paper_figures.md)).
 
 | Step | Where | What |
 |------|-------|------|
-| Spatial mean | `tipmip-gwl-preprocess` | Area-weighted global mean, **keep monthly** |
+| Spatial mean | `python scripts/build_gmstmon.py` | Area-weighted global mean, **keep monthly** |
 | Temporal mean | `load_gmsat_nc` (on read) | Days-in-month weighted **annual** mean |
+| Overlap guard | `python scripts/build_gmstmon.py` | Drops duplicate calendar months after chunk merge |
 
-Do **not** use `cdo yearmean` for the baseline.
+Do **not** use `cdo yearmean` for the baseline. When listing chunk paths in
+`tas_chunks.tsv`, avoid overlapping ranges (a superset file plus its partitions
+will duplicate months unless deduplicated).
 
 ---
 
@@ -128,7 +131,7 @@ The bundled `tas_chunks.tsv` also lists ramp-down, ZE-hold, and other legs. Use
 the same command with the matching `experiment_id`, for example:
 
 ```bash
-tipmip-gwl-preprocess \
+python scripts/build_gmstmon.py \
   --exp esm-up2p0-gwl2p0-50y-dn2p0 \
   --outdir /work/.../merged/tas/esm-up2p0-gwl2p0-50y-dn2p0/gmstmon
 ```
@@ -142,8 +145,8 @@ Mixed-layer **mlotst** preprocessing is handled outside this package.
 ## Updating paths
 
 1. Find the new absolute path on Levante.
-2. Edit `src/tipmip_gwl/data/tas_chunks.tsv`.
-3. Re-run `tipmip-gwl-preprocess` for that experiment.
+2. Edit `scripts/data/tas_chunks.tsv`.
+3. Re-run `python scripts/build_gmstmon.py` for that experiment.
 
 Verify:
 

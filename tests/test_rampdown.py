@@ -10,8 +10,14 @@ import numpy as np
 import pytest
 import xarray as xr
 
+from tipmip_gwl.build import (
+    DEFAULT_T_GRID,
+    DEFAULT_T_GRID_4C_HOLD,
+    build_rampdown_mapping_dataset,
+    write_rampdown_mapping,
+    _t_grid_for_dn_experiment,
+)
 from tipmip_gwl.product import NotMappable
-from tipmip_gwl.rampdown import build_rampdown_mapping_dataset, write_rampdown_mapping
 
 CALENDAR = "noleap"
 
@@ -206,3 +212,17 @@ def test_write_rampdown_mapping_filenames_by_experiment_id(tmp_path, pi_control_
     path = write_rampdown_mapping(out, tmp_path / "mapping_out")
     assert path.name == "gwlmap_NorESM2-LM_esm-up2p0-swl2p0-50y-dn2p0_v1.nc"
     assert path.exists()
+
+
+def test_t_grid_wider_for_4c_hold_experiment():
+    grid_2c = _t_grid_for_dn_experiment("esm-up2p0-gwl2p0-50y-dn2p0")
+    grid_4c = _t_grid_for_dn_experiment("esm-up2p0-gwl4p0-50y-dn2p0")
+    grid_nor = _t_grid_for_dn_experiment("esm-up2p0-swl2p0-50y-dn2p0")
+    assert np.array_equal(grid_2c, DEFAULT_T_GRID)
+    assert np.array_equal(grid_4c, DEFAULT_T_GRID_4C_HOLD)
+    assert float(grid_4c.max()) > float(grid_2c.max())
+    assert np.array_equal(grid_nor, DEFAULT_T_GRID)
+    assert np.array_equal(
+        _t_grid_for_dn_experiment("esm-up2p0-swl4p0-50y-dn2p0"),
+        DEFAULT_T_GRID_4C_HOLD,
+    )
