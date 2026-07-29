@@ -33,7 +33,9 @@ DEFAULT_OUT_CSV = Path(__file__).resolve().parent / "tables" / "baseline_sensiti
 
 def main(up2p0_dir, picontrol_dir, window=31, out_csv=None):
     rows = []
-    for model, ru_path, pi_path in discover_mappable_models(up2p0_dir, picontrol_dir):
+    for model, ru_path, pi_path in discover_mappable_models(
+        up2p0_dir, picontrol_dir, bundled_only=True
+    ):
         ru_years, _ = load_gmsat_nc(ru_path)
         pi_years, pi_gmsat = load_gmsat_nc(pi_path)
         bi = branch_year_from_attrs(read_attrs(ru_path))

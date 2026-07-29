@@ -60,7 +60,7 @@ def _baseline_note(d, window=31):
 
 def model_order_by_ref_full(up2p0_dir, picontrol_dir, window=31) -> list[str]:
     """Return model ids sorted by ascending full piControl GMSAT (Table A1 / Fig. 3)."""
-    diags = run_diagnostics(up2p0_dir, picontrol_dir, window=window)
+    diags = run_diagnostics(up2p0_dir, picontrol_dir, window=window, bundled_only=True)
     pairs = [
         (d.pi_reference_full, d.model)
         for d in diags
@@ -71,7 +71,7 @@ def model_order_by_ref_full(up2p0_dir, picontrol_dir, window=31) -> list[str]:
 
 
 def main(up2p0_dir, picontrol_dir, window=31, out_csv=None):
-    diags = run_diagnostics(up2p0_dir, picontrol_dir, window=window)
+    diags = run_diagnostics(up2p0_dir, picontrol_dir, window=window, bundled_only=True)
 
     rows = []
     for d in diags:

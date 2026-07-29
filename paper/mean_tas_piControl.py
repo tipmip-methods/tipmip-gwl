@@ -23,6 +23,7 @@ import xarray as xr
 from matplotlib.gridspec import GridSpec
 from matplotlib.lines import Line2D
 
+from tipmip_gwl import list_models
 from tipmip_gwl.baseline import (
     branch_year_from_attrs,
     branch_window_reference,
@@ -89,7 +90,11 @@ def main(up2p0_dir, picontrol_dir, out_path=None):
     branch_trailing = []
     model_names = []
 
+    allowed = set(list_models())
+
     for model in sorted(pi_files):
+        if model not in allowed:
+            continue
         pi_path = pi_files[model]
         pi_years, pi_gmsat = load_gmsat_nc(pi_path)
         means.append(float(np.mean(pi_gmsat)))

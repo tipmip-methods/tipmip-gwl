@@ -28,7 +28,7 @@ DEFAULT_OUT_DIR = PAPER_DIR / "figures"
 
 
 def main(up2p0_dir, picontrol_dir, window=31, out_dir=None):
-    diags = run_diagnostics(up2p0_dir, picontrol_dir, window=window)
+    diags = run_diagnostics(up2p0_dir, picontrol_dir, window=window, bundled_only=True)
     print_table(diags)
     out_dir = Path(out_dir) if out_dir else DEFAULT_OUT_DIR
     _path_a, path_b = plot_diagnostics(diags, out_dir, rampup=False)

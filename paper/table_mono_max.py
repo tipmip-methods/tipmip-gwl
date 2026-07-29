@@ -20,7 +20,7 @@ import csv
 from pathlib import Path
 
 import xarray as xr
-from mlotst_remap_helpers import mapping_index_by_leg
+from mlotst_remap_helpers import bundled_models, mapping_index_by_leg
 from table1 import model_order_by_ref_full
 
 DEFAULT_OUT_CSV = Path(__file__).resolve().parent / "tables" / "table_mono_max.csv"
@@ -40,7 +40,10 @@ def _r3(x):
 
 def _mono_max_by_model(mapping_dir: Path, leg: str) -> dict[str, float]:
     out: dict[str, float] = {}
+    allowed = set(bundled_models())
     for model, path in mapping_index_by_leg(mapping_dir, leg).items():
+        if model not in allowed:
+            continue
         with xr.open_dataset(path) as ds:
             out[model] = float(ds["monotonization_max"].values)
     return out

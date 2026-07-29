@@ -32,6 +32,7 @@ from tipmip_gwl.product import relabel_to_gwl
 from mlotst_remap_helpers import (
     GLOBAL_MLOTST_YLABEL,
     area_weighted_global_mean,
+    bundled_models,
     calendar_years,
     discover_native_mlotst,
     lat_name,
@@ -48,10 +49,10 @@ def main(mlotst_dir, mapping_dir, out_path):
 
     mlotst_files = discover_native_mlotst(mlotst_dir)
     mapping_files = mapping_index_by_rampup_model(mapping_dir)
-    models = sorted(set(mlotst_files) & set(mapping_files))
-    missing = sorted(set(mlotst_files) ^ set(mapping_files))
-    if missing:
-        print(f"note: skipping models present on only one side: {missing}")
+    models = bundled_models(mlotst_files, mapping_files)
+    skipped = sorted(set(mlotst_files) | set(mapping_files) - set(models))
+    if skipped:
+        print(f"note: skipping models outside paper bundle or missing data: {skipped}")
 
     colors = model_color_map(models)
 

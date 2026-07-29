@@ -43,12 +43,20 @@ class ModelDiag:
     base_span_hi: float = float("nan")
 
 
-def run_diagnostics(up2p0_dir, picontrol_dir, window=31, detrend=False):
+def run_diagnostics(up2p0_dir, picontrol_dir, window=31, detrend=False, *, bundled_only=False):
     ru_files = discover(up2p0_dir)
     pi_files = discover(picontrol_dir)
+    if bundled_only:
+        from tipmip_gwl import list_models
+
+        allowed = set(list_models())
+    else:
+        allowed = None
     diags = []
 
     for model in sorted(ru_files):
+        if allowed is not None and model not in allowed:
+            continue
         warns: list[str] = []
         ru_path = ru_files[model]
         pi_path = pi_files.get(model)

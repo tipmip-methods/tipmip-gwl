@@ -49,7 +49,9 @@ def main(
     print(hdr)
     print("-" * len(hdr))
 
-    for model, ru_path, pi_path in discover_mappable_models(up2p0_dir, picontrol_dir):
+    for model, ru_path, pi_path in discover_mappable_models(
+        up2p0_dir, picontrol_dir, bundled_only=True
+    ):
         ru_years, ru_gmsat = load_gmsat_nc(ru_path)
         pi_years, pi_gmsat = load_gmsat_nc(pi_path)
         bi = branch_year_from_attrs(read_attrs(ru_path))

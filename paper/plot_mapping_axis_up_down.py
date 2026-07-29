@@ -17,7 +17,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 import xarray as xr
-from mlotst_remap_helpers import mapping_index_by_leg
+from mlotst_remap_helpers import bundled_models, mapping_index_by_leg
 from paper_style import model_color_map
 
 PAPER_DIR = Path(__file__).resolve().parent
@@ -122,11 +122,9 @@ def main(
     if not dn_by_leg:
         raise SystemExit(f"No ramp-down mapping files found under {mapping_dir}")
 
-    models = sorted(set(up_maps))
-    for maps in dn_by_leg.values():
-        models = sorted(set(models) & set(maps))
+    models = bundled_models(up_maps, *dn_by_leg.values())
     if not models:
-        raise SystemExit("No models with ramp-up and at least one ramp-down mapping")
+        raise SystemExit("No bundled models with ramp-up and at least one ramp-down mapping")
 
     colors = model_color_map(models)
     up_maps = {m: up_maps[m] for m in models}

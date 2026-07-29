@@ -12,6 +12,17 @@ from tipmip_gwl.io import model_label
 GLOBAL_MLOTST_YLABEL = "Global-mean annual-max mixed-layer depth (m)"
 
 
+def bundled_models(*model_dicts: dict[str, object]) -> list[str]:
+    """Models present in every dict and in the shipped ``v1`` bundle."""
+    from tipmip_gwl import list_models
+
+    allowed = set(list_models())
+    if not model_dicts:
+        return sorted(allowed)
+    keys = set.intersection(*(set(d.keys()) for d in model_dicts))
+    return sorted(keys & allowed)
+
+
 def lat_name(ds: xr.Dataset) -> str:
     for name in ("latitude", "lat"):
         if name in ds.coords:

@@ -222,13 +222,22 @@ def branch_window_reference(
     return float(np.mean(vals[sel]))
 
 
-def discover_mappable_models(up2p0_dir, picontrol_dir):
+def discover_mappable_models(up2p0_dir, picontrol_dir, *, bundled_only=False):
     """Yield ``(model, ramp_up_path, picontrol_path)`` for models with piControl tas."""
     from .io import discover
+
+    if bundled_only:
+        from tipmip_gwl import list_models
+
+        allowed = set(list_models())
+    else:
+        allowed = None
 
     ru_files = discover(up2p0_dir)
     pi_files = discover(picontrol_dir)
     for model in sorted(ru_files):
+        if allowed is not None and model not in allowed:
+            continue
         pi_path = pi_files.get(model)
         if pi_path is None:
             continue
