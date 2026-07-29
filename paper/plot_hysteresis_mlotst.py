@@ -27,6 +27,7 @@ import numpy as np
 import xarray as xr
 from matplotlib import gridspec
 from mlotst_remap_helpers import (
+    GLOBAL_MLOTST_YLABEL,
     area_weighted_global_mean,
     calendar_years,
     discover_native_mlotst,
@@ -109,9 +110,11 @@ def main(
     gwl, vals_up = _load_resampled_series(
         up_mlotst[model], up_maps[model], gwl_max=gwl_max
     )
-    _, vals_dn = _load_resampled_series(
+    gwl_dn, vals_dn = _load_resampled_series(
         dn_mlotst[model], dn_maps[model], gwl_max=gwl_max
     )
+    if not np.allclose(gwl, gwl_dn, equal_nan=True):
+        raise RuntimeError("ramp-up and ramp-down resampling grids differ")
 
     both = np.isfinite(vals_up) & np.isfinite(vals_dn)
     delta = np.full_like(vals_up, np.nan)
@@ -141,26 +144,24 @@ def main(
         label=DN_LEG_LABELS[dn_leg],
     )
     ax_main.set_xlim(GWL_MIN, gwl_max)
-    ax_main.set_ylabel("Global-mean annual-max mixed-layer depth (m)")
-    ax_main.set_title(f"{model}: mixed-layer depth on the common GWL grid", fontsize=11)
-    ax_main.legend(framealpha=0.9, loc="upper right")
+    ax_main.set_ylabel(GLOBAL_MLOTST_YLABEL)
+    ax_main.legend(framealpha=0, loc="upper right")
     ax_main.tick_params(labelbottom=False)
 
-    bar_gwl = gwl[both]
-    bar_delta = delta[both]
-    ax_delta.bar(
-        bar_gwl,
-        bar_delta,
-        width=GWL_GRID_STEP * 0.92,
+    delta_plot = np.where(both, delta, np.nan)
+    ax_delta.fill_between(
+        gwl,
+        0.0,
+        delta_plot,
+        step="mid",
         color=color,
         alpha=0.55,
-        align="center",
-        edgecolor="none",
+        linewidth=0,
     )
-    ax_delta.axhline(0.0, color="0.35", lw=0.6)
+    ax_delta.axhline(0.0, color="0.35", lw=0.6, zorder=3)
     ax_delta.set_xlim(GWL_MIN, gwl_max)
     ax_delta.set_xlabel("GWL (°C)")
-    ax_delta.set_ylabel(r"$\Delta$ depth (down $-$ up, m)")
+    ax_delta.set_ylabel(r"$\Delta$MLD (m)")
     ax_delta.yaxis.set_label_position("right")
     ax_delta.yaxis.tick_right()
     ax_delta.tick_params(axis="y", which="both", left=False, labelleft=False)

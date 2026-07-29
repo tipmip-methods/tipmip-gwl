@@ -46,7 +46,8 @@ There are two GWL transforms, depending on whether you want a **shared** axis or
 each model's **own** axis:
 
 1. **`resample_to_gwl`** — resample onto the mapping's common GWL grid (0–4 °C
-   at 0.02 °C steps for ramp-up; roughly −1.5–2.5 °C for ramp-down). Uses the
+   at 0.02 °C steps for ramp-up; −2–5 °C at the same spacing for ramp-down).
+   Uses the
    inverse `year_of_gwl(gwl)`. Use this to **stack or compare models** at the
    same warming level on one leg.
 2. **`relabel_to_gwl`** — relabel a model's native time axis with continuous GWL

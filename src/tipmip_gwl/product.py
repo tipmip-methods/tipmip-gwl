@@ -321,7 +321,7 @@ def _year_of_gwl_target(
     """Fractional model year at each GWL on the requested grid (for ``resample_to_gwl``).
 
     By default uses the ``gwl`` coordinate stored in ``mapping_ds`` (ramp-up
-    0–4 °C or ramp-down −1.5–2.5 °C, etc.). Pass ``gwl_step`` / ``gwl_min`` /
+    0–4 °C or ramp-down −2–5 °C, etc.). Pass ``gwl_step`` / ``gwl_min`` /
     ``gwl_max`` to resample onto a custom grid instead.
     """
     src_gwl = np.asarray(mapping_ds["gwl"].values, dtype=float)
@@ -364,8 +364,8 @@ def resample_to_gwl(
     mapping_ds : x.Dataset
         A mapping product (from :func:`tipmip_gwl.build.build_mapping_dataset` or a published
         ``gwlmap_*.nc``). By default the output ``gwl`` coordinate matches the
-        grid stored in the file (0–4 °C for ramp-up, roughly −1.5–2.5 °C for
-        ramp-down). Optional ``gwl_step`` / ``gwl_min`` / ``gwl_max`` refine or
+        grid stored in the file (0–4 °C for ramp-up, −2–5 °C for ramp-down).
+        Optional ``gwl_step`` / ``gwl_min`` / ``gwl_max`` refine or
         subset that grid.
     data : x.DataArray or x.Dataset
         The diagnostic on an **annual** axis whose coordinate values are calendar

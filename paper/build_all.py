@@ -130,7 +130,7 @@ def main(up2p0_dir, picontrol_dir, mlotst_dir, mapping_dir, dn_dir=None, dn4_dir
         print(f"  wrote {out}")
 
     if dn_written and mlotst_dn.exists():
-        print("\n=== [9/11] Figure: mlotst hysteresis global (up vs ramp-down from 4 °C) ===")
+        print("\n=== [9/11] Figure 5: global mlotst hysteresis (up vs ramp-down from 4 °C) ===")
         out = plot_hysteresis_mlotst.main(
             mlotst_dir,
             mlotst_dn,
@@ -139,7 +139,7 @@ def main(up2p0_dir, picontrol_dir, mlotst_dir, mapping_dir, dn_dir=None, dn4_dir
         )
         print(f"  wrote {out}")
 
-        print("\n=== [10/11] Figure: mlotst hysteresis global (MIROC-ES2L) ===")
+        print("\n=== [10/11] Figure (suppl.): SPG mlotst hysteresis (MIROC-ES2L) ===")
         out = plot_hysteresis_mlotst_spg.main(
             mlotst_dir,
             mlotst_dn,

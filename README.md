@@ -25,7 +25,7 @@ Full API guide: [docs/using_mappings.md](docs/using_mappings.md).
 
 | Function | Output axis | Use when |
 |----------|-------------|----------|
-| `resample_to_gwl` | shared 0–4 °C grid (0.02 °C steps) | stacking or comparing models at the same GWL |
+| `resample_to_gwl` | shared GWL grid (0–4 °C ramp-up; −2–5 °C ramp-down; 0.02 °C steps) | stacking or comparing models at the same GWL |
 | `relabel_to_gwl` | native per-model GWL (uneven, unbinned) | plotting one model without binning |
 
 Both operate on **annual** data whose coordinate values are calendar years. Values are never extrapolated beyond each model's realised warming range.
@@ -63,6 +63,7 @@ mapping/                 local rebuild output (optional)
 | [docs/building_mappings.md](docs/building_mappings.md) | **Maintainers** — build mappings, sync bundled data |
 | [docs/gmstmon_pipeline.md](docs/gmstmon_pipeline.md) | **Maintainers** — tas → gmstmon via ``scripts/build_gmstmon.py`` |
 | [docs/paper_figures.md](docs/paper_figures.md) | **Paper reproduction** — `paper/build_all.py` and figure scripts |
+| [docs/publication_cleanup.md](docs/publication_cleanup.md) | **Maintainers** — GMD submission checklist |
 | [AGENTS.md](AGENTS.md) | **Coding agents** — architecture, gotchas, commands |
 
 ## Reproducing paper figures
@@ -77,3 +78,7 @@ worked example of `load_mapping` → `resample_to_gwl` on a synthetic diagnostic
 ## Citation
 
 If you use these mappings or the resampling method in published work, cite the accompanying GMD paper (in preparation) and pin the package version (`tipmip_gwl.__version__`) and mapping version (`v1`).
+
+## License
+
+BSD-2-Clause — see [LICENSE](LICENSE).

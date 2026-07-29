@@ -1,7 +1,8 @@
 # Agent context: tipmip-gwl
 
 Quick orientation for coding agents. Human docs live in `README.md` and `docs/`.
-Manuscript text todos: `docs/paper_todo.md`.
+Manuscript draft: `phd/Papers/paper_toad_one/` (Google Doc is primary).
+Submission checklist: `docs/publication_cleanup.md`.
 
 ## What this repo is
 
@@ -156,7 +157,8 @@ python paper/build_all.py                 # full paper rebuild (needs staged dat
 | Mapping axes up/down | `paper/plot_mapping_axis_up_down.py` |
 | piControl baseline | `paper/figures_1_2.py` |
 | mlotst remap demo | `paper/diagnostic_remap_demo.py` |
-| MIROC hysteresis (4 °C leg) | `paper/plot_hysteresis_mlotst_spg.py` → `hysteresis_mlotst_spg_4c.png` |
+| **Fig. 5 — global MLD hysteresis (4 °C leg)** | `paper/plot_hysteresis_mlotst.py` → `hysteresis_mlotst_4c.png` |
+| SPG hysteresis (suppl. / explorations) | `paper/plot_hysteresis_mlotst_spg.py` → `hysteresis_mlotst_spg_4c.png` |
 | Table A1 / A2 | `paper/table1.py`, `paper/table_mono_max.py` |
 
 Orchestrator: `paper/build_all.py`. Style: `paper/paper_style.py`.
@@ -167,6 +169,8 @@ Orchestrator: `paper/build_all.py`. Style: `paper/paper_style.py`.
   (separate pipeline; produces `*_annualmax_toad.nc` on GWL axis).
 - **Paper-adjacent GWL explorations:** `phd-toad/TIPMIP/analysis/tipmip-gwl-explorations/`
   (GWL axis spacing, SO/sivol/siconc figures — not in `build_all.py`).
+- **CESM2 trial audit (not bundled):** `phd-toad/TIPMIP/analysis/tipmip-gwl-explorations/cesm2/`
+  (ramp-down QA, figures, tables; mappings stay local in `mapping_cesm2/` if rebuilt).
 - **Manuscript LaTeX:** `phd/Papers/paper_toad_one/` (Google Doc is primary draft).
 
 ## Refactor history (2026-07)

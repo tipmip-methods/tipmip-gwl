@@ -7,7 +7,29 @@ name = "tipmip-gwl"
 version = "0.1.0"
 description = "Re-index TIPMIP ramp-up and ramp-down output onto a common global warming level axis."
 readme = "README.md"
+license = "BSD-2-Clause"
+license-files = ["LICENSE"]
 requires-python = ">=3.10"
+authors = [
+    { name = "Jakob Harteg", email = "github.0javt@aleeas.com" },
+]
+keywords = [
+    "TIPMIP",
+    "CMIP6",
+    "global warming level",
+    "climate",
+    "xarray",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Atmospheric Science",
+]
 dependencies = [
     "numpy",
     "scipy",
@@ -15,6 +37,11 @@ dependencies = [
     "cftime",
     "netCDF4",
 ]
+
+[project.urls]
+Homepage = "https://github.com/tipmip-methods/tipmip-gwl"
+Repository = "https://github.com/tipmip-methods/tipmip-gwl"
+Issues = "https://github.com/tipmip-methods/tipmip-gwl/issues"
 
 [project.optional-dependencies]
 paper = ["matplotlib"]

@@ -100,7 +100,8 @@ Exploratory calendar-axis trajectory (not for paper): `exploratory/zehold/plot_t
 
 ### Text (remaining)
 
-See **`docs/paper_todo.md`** for the full manuscript checklist (abstract, intro, Sect. 2.2, Discussion, renumbering).
+Manuscript checklist: **`phd/Papers/paper_toad_one/`** (Google Doc) and
+**`docs/publication_cleanup.md`** in this repo.
 
 - [ ] **Abstract / intro** — ramp-up **and** ramp-down
 - [ ] **Methods (~½ page)** — `direction=decreasing`; grids −1.5…2.5 °C (2 °C dn) and −1.5…4.5 °C (4 °C dn); hysteresis caveat
