@@ -7,6 +7,7 @@ from tipmip_gwl.mapping import (
     MappingConfig,
     axis_variable,
     gwl_grid,
+    gwl_grid_rampdown,
     invert_to_grid,
     map_model,
     monotonicity_report,
@@ -38,6 +39,16 @@ def test_gwl_grid_rejects_bad_args():
         gwl_grid(gwl_max=-1.0)
     with pytest.raises(ValueError):
         gwl_grid(gwl_min=1.0, gwl_max=1.0)
+
+
+def test_gwl_grid_rampdown_point_aligned_with_ramp_up():
+    ramp_up = gwl_grid()
+    ramp_down = gwl_grid_rampdown()
+    n_below = int(round((ramp_up[0] - (-2.0)) / 0.02))
+    assert np.array_equal(ramp_up, ramp_down[n_below : n_below + ramp_up.size])
+    assert ramp_down[0] == pytest.approx(-2.0)
+    assert ramp_down[-1] == pytest.approx(5.0)
+    assert ramp_down.size == 351
 
 
 def test_gwl_grid_supports_negative_min_for_rampdown():

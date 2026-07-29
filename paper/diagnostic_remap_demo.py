@@ -30,12 +30,14 @@ from matplotlib.patches import FancyArrowPatch
 from tipmip_gwl.product import relabel_to_gwl
 
 from mlotst_remap_helpers import (
+    GLOBAL_MLOTST_YLABEL,
     area_weighted_global_mean,
     calendar_years,
     discover_native_mlotst,
     lat_name,
     mapping_index_by_rampup_model,
 )
+from paper_style import model_color_map
 
 GWL_MAX = 4.0
 
@@ -51,7 +53,7 @@ def main(mlotst_dir, mapping_dir, out_path):
     if missing:
         print(f"note: skipping models present on only one side: {missing}")
 
-    colors = {m: plt.cm.Dark2.colors[i % 8] for i, m in enumerate(models)}
+    colors = model_color_map(models)
 
     series = {}
     for model in models:
@@ -90,7 +92,7 @@ def main(mlotst_dir, mapping_dir, out_path):
 
     axA.set_xlabel("Years since ramp-up start")
     axB.set_xlabel("GWL (°C)")
-    axA.set_ylabel("Global-mean annual-max mixed-layer depth (m)")
+    axA.set_ylabel(GLOBAL_MLOTST_YLABEL)
     axB.set_xlim(0.0, GWL_MAX)
     axA.legend(ncol=2, framealpha=0.0, loc="upper right")
 
@@ -133,7 +135,7 @@ DEFAULT_OUT = Path(__file__).resolve().parent / "figures" / "diagnostic_remap_de
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Two-panel demo: mlotst on native time axis vs common GWL axis."
+        description="Two-panel demo: global-mean mlotst on native time axis vs GWL axis."
     )
     parser.add_argument("--mlotst-dir", required=True)
     parser.add_argument("--mapping-dir", default="mapping")

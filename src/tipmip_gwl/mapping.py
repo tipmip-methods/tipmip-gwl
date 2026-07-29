@@ -290,6 +290,10 @@ def resample_variable(years, var, t_of_T):
 # ---------------------------------------------------------------------------
 
 GWL_GRID_STEP = 0.02  # degC; one year at the protocol's nominal 2 degC/century rate
+RAMP_UP_GWL_MIN = 0.0
+RAMP_UP_GWL_MAX = 4.0
+RAMP_DOWN_GWL_MIN = -2.0
+RAMP_DOWN_GWL_MAX = 5.0
 
 
 def gwl_grid(
@@ -298,10 +302,7 @@ def gwl_grid(
     """Build a common GWL coordinate: ``gwl_min`` to ``gwl_max`` in steps of ``step`` (degC).
 
     Endpoints are included (e.g. ``gwl_grid()`` -> 0.00, 0.02, …, 4.00 at the
-    default step). Defaults match the ramp-up leg (0-4 degC); the ramp-down leg
-    passes an explicit ``gwl_min``/``gwl_max`` spanning its own realized range
-    instead (models overshoot-cool to different depths, unlike ramp-up where all
-    clean models reach ~4 degC).
+    default step). Defaults match the ramp-up leg (0-4 degC).
     """
     if step <= 0:
         raise ValueError(f"gwl step must be positive, got {step}")
@@ -310,6 +311,38 @@ def gwl_grid(
             f"gwl_max must exceed gwl_min, got gwl_max={gwl_max}, gwl_min={gwl_min}"
         )
     return np.arange(gwl_min, gwl_max + step / 2, step)
+
+
+def gwl_grid_rampdown(step: float = GWL_GRID_STEP) -> np.ndarray:
+    """Ramp-down common grid: ``RAMP_DOWN_GWL_MIN``…``RAMP_DOWN_GWL_MAX`` at ``step`` (degC).
+
+    Point-aligned with ``gwl_grid()`` (ramp-up): every ramp-up grid value in
+    0-4 degC appears at the same coordinate on this extended grid, so
+    ``resample_to_gwl`` outputs can be differenced leg-by-leg without
+    interpolation mismatch.
+
+    Built by extending the ramp-up grid downward and upward from its endpoints
+    (not a separate ``np.arange`` from ``RAMP_DOWN_GWL_MIN``), avoiding
+    floating-point drift at the shared 0-4 degC points.
+    """
+    ramp_up = gwl_grid(
+        step=step, gwl_min=RAMP_UP_GWL_MIN, gwl_max=RAMP_UP_GWL_MAX
+    )
+    n_below = int(round((ramp_up[0] - RAMP_DOWN_GWL_MIN) / step))
+    n_above = int(round((RAMP_DOWN_GWL_MAX - ramp_up[-1]) / step))
+    below = ramp_up[0] - step * np.arange(n_below, 0, -1, dtype=float)
+    above = ramp_up[-1] + step * np.arange(1, n_above + 1, dtype=float)
+    grid = np.concatenate([below, ramp_up, above])
+    if not (
+        np.isclose(grid[0], RAMP_DOWN_GWL_MIN)
+        and np.isclose(grid[-1], RAMP_DOWN_GWL_MAX)
+    ):
+        raise RuntimeError(
+            "ramp-down grid endpoints do not match configured bounds"
+        )
+    if not np.array_equal(ramp_up, grid[n_below : n_below + ramp_up.size]):
+        raise RuntimeError("ramp-down grid is not point-aligned with ramp-up grid")
+    return grid
 
 
 @dataclass

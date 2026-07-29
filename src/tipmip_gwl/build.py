@@ -22,7 +22,7 @@ import xarray as xr
 from . import baseline as bl
 from . import mapping
 from .io import discover, load_gmsat_nc, read_attrs
-from .mapping import gwl_grid
+from .mapping import gwl_grid, gwl_grid_rampdown
 from .product import DEFAULT_EXPERIMENT, NotMappable
 
 
@@ -372,26 +372,22 @@ def resolve_secondary_leg_baseline(
         )
     return bl.compute_baseline(pi_years, pi_gmsat, branch_year=None)
 
-# Ramp-down common GWL grids (fixed published choice; see _grid_bounds_warnings).
-DEFAULT_T_GRID = gwl_grid(gwl_min=-1.5, gwl_max=2.5)
-DEFAULT_T_GRID_4C_HOLD = gwl_grid(gwl_min=-1.5, gwl_max=4.5)
+# Ramp-down common GWL grid (fixed published choice; see _grid_bounds_warnings).
+DEFAULT_T_GRID_RAMP_DOWN = gwl_grid_rampdown()
+# Backward-compatible alias used in tests and call sites.
+DEFAULT_T_GRID = DEFAULT_T_GRID_RAMP_DOWN
 
 
 def _t_grid_for_dn_experiment(experiment_id: str) -> np.ndarray:
-    """Pick a published common grid from the ramp-down experiment id."""
-    exp = str(experiment_id).lower()
-    if "gwl4p0" in exp or "swl4p0" in exp:
-        return DEFAULT_T_GRID_4C_HOLD
-    return DEFAULT_T_GRID
+    """Return the published ramp-down common grid (same for all branches)."""
+    del experiment_id  # branch id kept for call-site compatibility
+    return DEFAULT_T_GRID_RAMP_DOWN
 
 
 def _t_grid_for_dn_dir(dn_dir) -> np.ndarray:
-    """Infer the common grid from any file in a single-experiment dn gmstmon directory."""
-    dn_files = discover(dn_dir)
-    if not dn_files:
-        return DEFAULT_T_GRID
-    sample = next(iter(dn_files.values()))
-    return _t_grid_for_dn_experiment(read_attrs(sample).get("experiment_id", ""))
+    """Return the published ramp-down common grid."""
+    del dn_dir  # kept for call-site compatibility
+    return DEFAULT_T_GRID_RAMP_DOWN
 
 
 def _parent_chain_warnings(dn_attrs: dict) -> list[str]:

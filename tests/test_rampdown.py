@@ -12,11 +12,12 @@ import xarray as xr
 
 from tipmip_gwl.build import (
     DEFAULT_T_GRID,
-    DEFAULT_T_GRID_4C_HOLD,
+    DEFAULT_T_GRID_RAMP_DOWN,
     build_rampdown_mapping_dataset,
     write_rampdown_mapping,
     _t_grid_for_dn_experiment,
 )
+from tipmip_gwl.mapping import gwl_grid, gwl_grid_rampdown
 from tipmip_gwl.product import NotMappable
 
 CALENDAR = "noleap"
@@ -214,15 +215,22 @@ def test_write_rampdown_mapping_filenames_by_experiment_id(tmp_path, pi_control_
     assert path.exists()
 
 
-def test_t_grid_wider_for_4c_hold_experiment():
+def test_t_grid_single_grid_for_all_rampdown_branches():
     grid_2c = _t_grid_for_dn_experiment("esm-up2p0-gwl2p0-50y-dn2p0")
     grid_4c = _t_grid_for_dn_experiment("esm-up2p0-gwl4p0-50y-dn2p0")
     grid_nor = _t_grid_for_dn_experiment("esm-up2p0-swl2p0-50y-dn2p0")
-    assert np.array_equal(grid_2c, DEFAULT_T_GRID)
-    assert np.array_equal(grid_4c, DEFAULT_T_GRID_4C_HOLD)
-    assert float(grid_4c.max()) > float(grid_2c.max())
-    assert np.array_equal(grid_nor, DEFAULT_T_GRID)
+    assert np.array_equal(grid_2c, DEFAULT_T_GRID_RAMP_DOWN)
+    assert np.array_equal(grid_4c, DEFAULT_T_GRID_RAMP_DOWN)
+    assert np.array_equal(grid_nor, DEFAULT_T_GRID_RAMP_DOWN)
     assert np.array_equal(
         _t_grid_for_dn_experiment("esm-up2p0-swl4p0-50y-dn2p0"),
-        DEFAULT_T_GRID_4C_HOLD,
+        DEFAULT_T_GRID_RAMP_DOWN,
     )
+    assert np.array_equal(DEFAULT_T_GRID, DEFAULT_T_GRID_RAMP_DOWN)
+    ramp_up = gwl_grid()
+    n_below = int(round((ramp_up[0] - (-2.0)) / 0.02))
+    assert np.array_equal(ramp_up, grid_2c[n_below : n_below + ramp_up.size])
+    assert grid_2c[0] == pytest.approx(-2.0)
+    assert grid_2c[-1] == pytest.approx(5.0)
+    assert grid_2c.size == 351
+    assert np.array_equal(gwl_grid_rampdown(), DEFAULT_T_GRID_RAMP_DOWN)

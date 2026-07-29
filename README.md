@@ -63,6 +63,7 @@ mapping/                 local rebuild output (optional)
 | [docs/building_mappings.md](docs/building_mappings.md) | **Maintainers** — build mappings, sync bundled data |
 | [docs/gmstmon_pipeline.md](docs/gmstmon_pipeline.md) | **Maintainers** — tas → gmstmon via ``scripts/build_gmstmon.py`` |
 | [docs/paper_figures.md](docs/paper_figures.md) | **Paper reproduction** — `paper/build_all.py` and figure scripts |
+| [AGENTS.md](AGENTS.md) | **Coding agents** — architecture, gotchas, commands |
 
 ## Reproducing paper figures
 

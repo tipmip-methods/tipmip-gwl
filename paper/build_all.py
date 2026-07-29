@@ -33,6 +33,7 @@ import diagnostic_remap_binned_demo  # noqa: E402
 import diagnostic_remap_demo  # noqa: E402
 import figures_1_2  # noqa: E402
 import plot_hysteresis_mlotst  # noqa: E402
+import plot_hysteresis_mlotst_spg  # noqa: E402
 import plot_mapping_axis_up_down  # noqa: E402
 import table1  # noqa: E402
 import table_mono_max  # noqa: E402
@@ -71,57 +72,57 @@ def main(up2p0_dir, picontrol_dir, mlotst_dir, mapping_dir, dn_dir=None, dn4_dir
     have_dn = dn_dir is not None and dn_dir.exists()
     have_dn4 = dn4_dir is not None and dn4_dir.exists()
 
-    print("=== [0/9] rebuilding mapping/ data product (ramp-up) ===")
+    print("=== [0/11] rebuilding mapping/ data product (ramp-up) ===")
     written, skipped = write_products(up2p0_dir, picontrol_dir, mapping_dir)
     _report_written(written, skipped)
 
     dn_written = []
     if have_dn:
-        print("\n=== [0b/9] rebuilding mapping/ data product (ramp-down 2°C) ===")
+        print("\n=== [0b/11] rebuilding mapping/ data product (ramp-down 2°C) ===")
         dn_written, dn_skipped = write_rampdown_products(dn_dir, picontrol_dir, mapping_dir)
         _report_written(dn_written, dn_skipped)
     else:
-        print(f"\n=== [0b/9] ramp-down 2°C: skipped (--dn-dir not staged: {dn_dir}) ===")
+        print(f"\n=== [0b/11] ramp-down 2°C: skipped (--dn-dir not staged: {dn_dir}) ===")
 
     if have_dn4:
-        print("\n=== [0c/9] rebuilding mapping/ data product (ramp-down 4°C) ===")
+        print("\n=== [0c/11] rebuilding mapping/ data product (ramp-down 4°C) ===")
         dn4_written, dn4_skipped = write_rampdown_products(dn4_dir, picontrol_dir, mapping_dir)
         _report_written(dn4_written, dn4_skipped)
         dn_written.extend(dn4_written)
     else:
-        print(f"\n=== [0c/9] ramp-down 4°C: skipped (--dn4-dir not staged: {dn4_dir}) ===")
+        print(f"\n=== [0c/11] ramp-down 4°C: skipped (--dn4-dir not staged: {dn4_dir}) ===")
 
-    print("\n=== [1/9] Figure: piControl baseline ===")
+    print("\n=== [1/11] Figure: piControl baseline ===")
     figures_1_2.main(up2p0_dir, picontrol_dir)
 
-    print("\n=== [2/9] Table: baseline_sensitivity (full vs 31-yr window) ===")
+    print("\n=== [2/11] Table: baseline_sensitivity (full vs 31-yr window) ===")
     baseline_sensitivity_main(up2p0_dir, picontrol_dir)
 
-    print("\n=== [3/9] Table: window_sensitivity (21/31/41 yr smoothing) ===")
+    print("\n=== [3/11] Table: window_sensitivity (21/31/41 yr smoothing) ===")
     window_sensitivity.main(up2p0_dir, picontrol_dir)
 
-    print("\n=== [4/9] Figure 3: baseline_reference_comparison ===")
+    print("\n=== [4/11] Figure 3: baseline_reference_comparison ===")
     mean_tas_piControl_main(up2p0_dir, picontrol_dir)
 
-    print("\n=== [5/9] Figure 4: diagnostic_remap_demo ===")
+    print("\n=== [5/11] Figure 4: diagnostic_remap_demo ===")
     diagnostic_remap_demo.main(mlotst_dir, mapping_dir, diagnostic_remap_demo.DEFAULT_OUT)
 
-    print("\n=== [6/9] Figure 4 (detail): diagnostic_remap_binned_demo ===")
+    print("\n=== [6/11] Figure 4 (detail): diagnostic_remap_binned_demo ===")
     diagnostic_remap_binned_demo.main(
         mlotst_dir,
         mapping_dir,
         diagnostic_remap_binned_demo.DEFAULT_OUT,
     )
 
-    print("\n=== [7/10] Table A1 (SI): per-model baseline diagnostics ===")
+    print("\n=== [7/11] Table A1 (SI): per-model baseline diagnostics ===")
     table1.main(up2p0_dir, picontrol_dir)
 
-    print("\n=== [7b/10] Table A2 (SI): per-model monotonization_max by leg ===")
+    print("\n=== [7b/11] Table A2 (SI): per-model monotonization_max by leg ===")
     table_mono_max.main(mapping_dir, up2p0_dir, picontrol_dir)
 
     mlotst_dn = DEFAULT_MLOTST_DN_DIR
     if dn_written:
-        print("\n=== [8/10] Figure: mapping GWL axis (ramp-up and ramp-down) ===")
+        print("\n=== [8/11] Figure: mapping GWL axis (ramp-up and ramp-down) ===")
         out = plot_mapping_axis_up_down.main(
             mapping_dir,
             PAPER_DIR / "figures/mapping_axis_up_down.png",
@@ -129,7 +130,7 @@ def main(up2p0_dir, picontrol_dir, mlotst_dir, mapping_dir, dn_dir=None, dn4_dir
         print(f"  wrote {out}")
 
     if dn_written and mlotst_dn.exists():
-        print("\n=== [9/10] Figure: mlotst hysteresis (up vs ramp-down from 4 °C) ===")
+        print("\n=== [9/11] Figure: mlotst hysteresis global (up vs ramp-down from 4 °C) ===")
         out = plot_hysteresis_mlotst.main(
             mlotst_dir,
             mlotst_dn,
@@ -137,10 +138,19 @@ def main(up2p0_dir, picontrol_dir, mlotst_dir, mapping_dir, dn_dir=None, dn4_dir
             PAPER_DIR / "figures/hysteresis_mlotst_4c.png",
         )
         print(f"  wrote {out}")
+
+        print("\n=== [10/11] Figure: mlotst hysteresis global (MIROC-ES2L) ===")
+        out = plot_hysteresis_mlotst_spg.main(
+            mlotst_dir,
+            mlotst_dn,
+            mapping_dir,
+            PAPER_DIR / "figures/hysteresis_mlotst_spg_4c.png",
+        )
+        print(f"  wrote {out}")
     elif not dn_written:
-        print("\n=== [8–9/10] ramp-down figures: skipped (ramp-down mapping not rebuilt) ===")
+        print("\n=== [8–10/11] ramp-down figures: skipped (ramp-down mapping not rebuilt) ===")
     else:
-        print(f"\n=== [9/10] mlotst hysteresis: skipped ({mlotst_dn} not staged) ===")
+        print(f"\n=== [9–10/11] mlotst hysteresis: skipped ({mlotst_dn} not staged) ===")
 
     print(f"\nAll figures/tables written under {PAPER_DIR}/figures and {PAPER_DIR}/tables")
 

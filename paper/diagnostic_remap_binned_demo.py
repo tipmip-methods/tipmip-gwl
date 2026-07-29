@@ -3,8 +3,7 @@ Zoomed illustration: relabel_to_gwl (native GWL axis) vs resample_to_gwl (0.02 �
 
 Native points (circles) sit at each year's forward-mapped GWL, horizontal segments
 show the lateral shift onto the nearest 0.02 °C grid line, and squares mark the
-remapped values at those grid points. Uses the same raw annual-max mlotst as
-:mod:`diagnostic_remap_demo`.
+remapped values at those grid points. Uses global-mean, unsmoothed annual-max mlotst.
 
 Usage::
 
@@ -33,12 +32,14 @@ from tipmip_gwl.mapping import GWL_GRID_STEP, gwl_grid
 from tipmip_gwl.product import relabel_to_gwl, resample_to_gwl
 
 from mlotst_remap_helpers import (
+    GLOBAL_MLOTST_YLABEL,
     area_weighted_global_mean,
     calendar_years,
     discover_native_mlotst,
     lat_name,
     mapping_index_by_rampup_model,
 )
+from paper_style import model_color_map
 
 PAPER_DIR = Path(__file__).resolve().parent
 
@@ -193,7 +194,7 @@ def _plot(
     for g in x_ticks:
         ax.axvline(g, color="0.86", lw=0.9, zorder=0)
     ax.set_xlabel("GWL (°C)")
-    ax.set_ylabel("Global-mean annual-max mixed-layer depth (m)")
+    ax.set_ylabel(GLOBAL_MLOTST_YLABEL)
 
     handles = [
         Line2D(
@@ -251,10 +252,8 @@ def main(
     )
     grid_lines = gwl_grid(GWL_GRID_STEP, gwl_max=gwl_hi + GWL_GRID_STEP)
 
-    palette = plt.cm.Dark2.colors
-    styles = [
-        dict(color=palette[i % len(palette)], label=m) for i, m in enumerate(models)
-    ]
+    colors = model_color_map(list(models))
+    styles = [dict(color=colors[m], label=m) for m in models]
 
     fig, ax = plt.subplots(figsize=(7.2, 4.2))
     _plot(
