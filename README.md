@@ -43,6 +43,25 @@ Each mapping file is a **coordinate product** (`year_of_gwl`, `gwl_axis`, baseli
 
 To use a locally rebuilt mapping instead, pass `mapping_dir=` or `path=` to `load_mapping`.
 
+### Ensemble overview
+
+Ramp-up and both ramp-down legs for each model share one piControl baseline. Thin lines in the figure below are annual GMSAT anomalies; thick lines are the monotone axis used for re-indexing (31-year centred running mean + isotonic regression).
+
+![Monotone GWL axes for ramp-up and ramp-down](paper/figures/mapping_axis_up_down.png)
+
+| Model | Legs bundled | Baseline caveat |
+|-------|--------------|-----------------|
+| IPSL-CM6-ESMCO2 | ramp-up, dn-2 °C, dn-4 °C | — centred 31-yr window at branch year (1849) |
+| GISS-E2-1-G-CC2 | ramp-up, dn-2 °C, dn-4 °C | — centred window (2156) |
+| UKESM1-2-LL | ramp-up, dn-2 °C, dn-4 °C | Branch year **2277** patched in code (`KNOWN_BRANCH_YEARS`; wrong or missing in staged attrs) |
+| GFDL-ESM2M | ramp-up, dn-2 °C, dn-4 °C | — centred window (1961) |
+| NorESM2-LM | ramp-up, dn-2 °C, dn-4 °C | **Full piControl mean** — branch year (1600) outside staged record (1851–2100) |
+| ACCESS-ESM1-5 | ramp-up, dn-2 °C, dn-4 °C | **Trailing 31-yr window** — branch at first piControl year (271); centred window not possible |
+| EC-Earth3-ESM-1 | ramp-up, dn-2 °C, dn-4 °C | **Trailing 31-yr window** — branch at piControl start (1850) |
+| MIROC-ES2L | ramp-up, dn-2 °C, dn-4 °C | — centred window (2001) |
+
+Per-model drift, reference temperatures, and monotonicity diagnostics: `paper/tables/table1.csv`, `paper/tables/table_mono_max.csv` (also Tables A1–A2 in the GMD paper).
+
 ## Repository layout
 
 ```

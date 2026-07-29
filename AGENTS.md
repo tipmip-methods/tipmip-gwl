@@ -158,7 +158,6 @@ python paper/build_all.py                 # full paper rebuild (needs staged dat
 | piControl baseline | `paper/figures_1_2.py` |
 | mlotst remap demo | `paper/diagnostic_remap_demo.py` |
 | **Fig. 5 — global MLD hysteresis (4 °C leg)** | `paper/plot_hysteresis_mlotst.py` → `hysteresis_mlotst_4c.png` |
-| SPG hysteresis (suppl. / explorations) | `paper/plot_hysteresis_mlotst_spg.py` → `hysteresis_mlotst_spg_4c.png` |
 | Table A1 / A2 | `paper/table1.py`, `paper/table_mono_max.py` |
 
 Orchestrator: `paper/build_all.py`. Style: `paper/paper_style.py`.

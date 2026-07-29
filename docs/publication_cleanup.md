@@ -30,8 +30,8 @@ Manuscript prose lives in `phd/Papers/paper_toad_one/` (Google Doc is primary).
 | [x] | Fix archive doc stale links | `docs/archive/rampdown_plan.md` |
 | [x] | Add this checklist | `docs/publication_cleanup.md` |
 | [x] | Commit pending doc edits | Fig 5 PNG, LICENSE, `pyproject.toml`, cleanup docs |
-| [x] | Reconcile hysteresis scripts | Fig. 5 = global (`plot_hysteresis_mlotst.py`); SPG = supplementary |
-| [ ] | `paper/test_mlotst_remap_helpers.py` | Move to `tests/` or drop |
+| [x] | Reconcile hysteresis script | Fig. 5 = global MLD (`plot_hysteresis_mlotst.py`) |
+| [x] | Remove SPG hysteresis artefact | Deleted script, PNG, regional helpers, and `test_mlotst_remap_helpers.py` |
 
 ---
 
@@ -78,7 +78,6 @@ Manuscript prose lives in `phd/Papers/paper_toad_one/` (Google Doc is primary).
 | `paper/figures/diagnostic_remap_demo.png` | `diagnostic_remap_demo.py` |
 | `paper/figures/diagnostic_remap_binned_demo.png` | `diagnostic_remap_binned_demo.py` |
 | **`paper/figures/hysteresis_mlotst_4c.png`** | **`plot_hysteresis_mlotst.py` (Fig. 5 — global MLD)** |
-| `paper/figures/hysteresis_mlotst_spg_4c.png` | `plot_hysteresis_mlotst_spg.py` (SPG regional; supplementary) |
 
 ---
 

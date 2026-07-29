@@ -30,7 +30,7 @@ This orchestrator:
 2. Runs each script under `paper/` in sequence
 3. Writes figures to `paper/figures/` and tables to `paper/tables/`
 
-Steps 0b/0c and 8–10 are skipped when ramp-down gmstmon is not staged.
+Steps 0b/0c and 8–9 are skipped when ramp-down gmstmon is not staged.
 
 ## Step index (`build_all.py`)
 
@@ -49,7 +49,6 @@ Steps 0b/0c and 8–10 are skipped when ramp-down gmstmon is not staged.
 | 7b | `paper/table_mono_max.py` | `tables/table_mono_max.csv` |
 | 8 | `paper/plot_mapping_axis_up_down.py` | `figures/mapping_axis_up_down.png` |
 | 9 | `paper/plot_hysteresis_mlotst.py` | **`figures/hysteresis_mlotst_4c.png` (Fig. 5 — global MLD)** |
-| 10 | `paper/plot_hysteresis_mlotst_spg.py` | `figures/hysteresis_mlotst_spg_4c.png` (SPG regional; supplementary) |
 
 Each script is also runnable standalone — see its module docstring for arguments.
 
@@ -68,7 +67,7 @@ GWL axis spacing and other non-paper figures:
 | Mixed-layer depth (up) | `mlotst/esm-up2p0/` | diagnostic remap demos |
 | Ramp-down gmstmon (2 °C) | `tas/esm-up2p0-gwl2p0-50y-dn2p0/gmstmon/` | mapping 0b |
 | Ramp-down gmstmon (4 °C) | `tas/esm-up2p0-gwl4p0-50y-dn2p0/gmstmon/` | mapping 0c, hysteresis |
-| Mixed-layer depth (dn 4 °C) | `mlotst/esm-up2p0-gwl4p0-50y-dn2p0/` | hysteresis figures (steps 9–10) |
+| Mixed-layer depth (dn 4 °C) | `mlotst/esm-up2p0-gwl4p0-50y-dn2p0/` | hysteresis figure (step 9) |
 
 Preprocess tas with `python scripts/build_gmstmon.py` — see [gmstmon_pipeline.md](gmstmon_pipeline.md).
 Mapping build detail: [building_mappings.md](building_mappings.md).
