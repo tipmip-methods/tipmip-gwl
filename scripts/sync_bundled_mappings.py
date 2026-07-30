@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Copy published mapping files into the package data directory.
 
-Syncs ramp-up and ramp-down legs (24 files for the Tier-1 ensemble). Zero-emission
-hold mappings are excluded — they are not part of the v1 user product.
+Syncs ramp-up and ramp-down legs for :data:`tipmip_gwl.ensemble.INCLUDED_MODELS`
+only. Trial mappings (e.g. CESM2) in ``mapping/`` are ignored. Raises if any
+included model lacks a required leg.
 
 Run after rebuilding ``mapping/`` locally, before tagging a release. See
 ``docs/building_mappings.md``.
@@ -21,6 +22,10 @@ DEFAULT_DST = REPO_ROOT / "src" / "tipmip_gwl" / "data" / "mappings"
 
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
+from tipmip_gwl.ensemble import (  # noqa: E402
+    MissingEnsembleDataError,
+    INCLUDED_MODELS,
+)
 from tipmip_gwl.product import (  # noqa: E402
     DEFAULT_MAPPING_VERSION,
     LEG_RAMP_DOWN_2C,
@@ -34,14 +39,15 @@ from tipmip_gwl.product import (  # noqa: E402
 BUNDLE_LEGS = (LEG_RAMP_UP, LEG_RAMP_DOWN_2C, LEG_RAMP_DOWN_4C)
 
 
-def publishable_mapping_paths(src_dir: Path) -> list[Path]:
-    """Return sorted ``gwlmap_*.nc`` paths that ship with the package."""
+def _index_by_model_leg(src_dir: Path) -> dict[tuple[str, str], Path]:
     by_model_leg: dict[tuple[str, str], Path] = {}
     for path in sorted(src_dir.glob("gwlmap_*.nc")):
         parsed = _parse_mapping_filename(path)
         if parsed is None:
             continue
         model, experiment, version = parsed
+        if model not in INCLUDED_MODELS:
+            continue
         if version != DEFAULT_MAPPING_VERSION:
             continue
         leg = _leg_for_experiment(experiment)
@@ -57,7 +63,22 @@ def publishable_mapping_paths(src_dir: Path) -> list[Path]:
             existing_experiment
         ):
             by_model_leg[key] = path
-    return sorted(by_model_leg.values())
+    return by_model_leg
+
+
+def publishable_mapping_paths(src_dir: Path) -> list[Path]:
+    """Return sorted ``gwlmap_*.nc`` paths for the included ensemble."""
+    by_model_leg = _index_by_model_leg(src_dir)
+    paths: list[Path] = []
+    for model in INCLUDED_MODELS:
+        for leg in BUNDLE_LEGS:
+            key = (model, leg)
+            if key not in by_model_leg:
+                raise MissingEnsembleDataError(
+                    f"Missing {leg} mapping for included model(s): {model}"
+                )
+            paths.append(by_model_leg[key])
+    return sorted(paths)
 
 
 def main(
@@ -72,10 +93,10 @@ def main(
     if not src_dir.is_dir():
         raise SystemExit(f"source directory not found: {src_dir}")
 
-    publishable = publishable_mapping_paths(src_dir)
-    if not publishable:
-        print(f"no publishable v1 mappings found in {src_dir}")
-        return 1
+    try:
+        publishable = publishable_mapping_paths(src_dir)
+    except MissingEnsembleDataError as exc:
+        raise SystemExit(str(exc)) from exc
 
     publishable_names = {p.name for p in publishable}
     if not dry_run:

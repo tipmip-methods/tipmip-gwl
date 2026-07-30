@@ -16,6 +16,7 @@ import numpy as np
 import xarray as xr
 
 from . import mapping
+from .ensemble import INCLUDED_MODELS
 from .mapping import gwl_grid
 
 
@@ -219,14 +220,13 @@ def list_models(
     experiment: str | None = None,
     mapping_dir: Path | str | None = None,
 ) -> list[str]:
-    """Return sorted model ids with a mapping file for ``leg``.
+    """Return sorted included model ids with a bundled mapping file for ``leg``.
 
-    Defaults to the bundled ramp-up ensemble. Ramp-down legs are also bundled;
-    pass ``mapping_dir=`` to override with a local rebuild.
+    Only models in :data:`~tipmip_gwl.ensemble.INCLUDED_MODELS` are returned;
+    trial mappings (e.g. CESM2) in ``mapping_dir`` are ignored.
     """
     leg = _normalize_leg(leg)
-    models: list[str] = []
-    seen: set[str] = set()
+    found: set[str] = set()
     for root in _mapping_search_roots(mapping_dir, leg):
         if not root.is_dir():
             continue
@@ -235,6 +235,8 @@ def list_models(
             if parsed is None:
                 continue
             model, exp, ver = parsed
+            if model not in INCLUDED_MODELS:
+                continue
             if ver != version:
                 continue
             if experiment is not None:
@@ -242,10 +244,8 @@ def list_models(
                     continue
             elif not _experiment_matches_leg(exp, leg):
                 continue
-            if model not in seen:
-                seen.add(model)
-                models.append(model)
-    return sorted(models)
+            found.add(model)
+    return [model for model in INCLUDED_MODELS if model in found]
 
 
 def bundled_mapping_path(

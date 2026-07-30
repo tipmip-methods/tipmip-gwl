@@ -1,13 +1,12 @@
 """
 piControl reference comparison: published 31-yr branch window vs full-run mean.
 
-Same underlying comparison as baseline_sensitivity.py, plotted as a per-model
-dot plot (this is the figure; baseline_sensitivity.py/table1.py are the text
-tables backing the same numbers).
+Same underlying comparison as ``table_baseline_sensitivity.csv``, plotted as a
+per-model dot plot; full appendix listing in ``table_baseline_diagnostics.csv``.
 
 Usage::
 
-    python paper/mean_tas_piControl.py \\
+    python paper/fig_baseline_reference_comparison.py \\
         --up2p0-dir ~/data/tipmip/tas/esm-up2p0/gmstmon \\
         --picontrol-dir ~/data/tipmip/tas/esm-piControl/gmstmon
 """
@@ -23,7 +22,7 @@ import xarray as xr
 from matplotlib.gridspec import GridSpec
 from matplotlib.lines import Line2D
 
-from tipmip_gwl import list_models
+from tipmip_gwl.ensemble import INCLUDED_MODELS
 from tipmip_gwl.baseline import (
     branch_year_from_attrs,
     branch_window_reference,
@@ -32,14 +31,14 @@ from tipmip_gwl.baseline import (
 from tipmip_gwl.io import discover, load_gmsat_nc, read_attrs
 from tipmip_gwl.mapping import picontrol_drift
 
-from paper_style import model_color_map
+from helper_paper_style import model_color_map
 
 plt.rcParams["figure.dpi"] = 300
 
 BRANCH_WINDOW = 31
 ROW_OFFSET = 0.17  # vertical offset between the two dots within each row
 DEFAULT_OUT = (
-    Path(__file__).resolve().parent / "figures" / "baseline_reference_comparison.png"
+    Path(__file__).resolve().parent / "figures" / "fig_baseline_reference_comparison.png"
 )
 
 
@@ -90,7 +89,7 @@ def main(up2p0_dir, picontrol_dir, out_path=None):
     branch_trailing = []
     model_names = []
 
-    allowed = set(list_models())
+    allowed = set(INCLUDED_MODELS)
 
     for model in sorted(pi_files):
         if model not in allowed:

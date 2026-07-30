@@ -1,14 +1,14 @@
 """
 Compare full piControl mean vs the published 31-yr branch-window baseline.
 
-Reproduces the baseline sensitivity table: drift is small and
-|full piControl mean − 31-yr branch window| is at most ~0.09 K for models with
-a decodable branch year inside piControl. The published baseline is now the
-window mean; this script keeps the full-vs-window comparison for robustness.
+CSV table supporting the robustness discussion (Sect. 2.3) and
+``fig_baseline_reference_comparison.py``. Summarised in the manuscript; the
+full per-model comparison also appears in ``table_baseline_diagnostics.csv``
+(Appendix Table A1).
 
 Usage::
 
-    python paper/baseline_sensitivity.py \\
+    python paper/table_baseline_sensitivity.py \\
         --up2p0-dir ~/data/tipmip/tas/esm-up2p0/gmstmon \\
         --picontrol-dir ~/data/tipmip/tas/esm-piControl/gmstmon
 """
@@ -28,7 +28,7 @@ from tipmip_gwl.baseline import (
 from tipmip_gwl.io import load_gmsat_nc, read_attrs
 from tipmip_gwl.mapping import picontrol_reference
 
-DEFAULT_OUT_CSV = Path(__file__).resolve().parent / "tables" / "baseline_sensitivity.csv"
+DEFAULT_OUT_CSV = Path(__file__).resolve().parent / "tables" / "table_baseline_sensitivity.csv"
 
 
 def main(up2p0_dir, picontrol_dir, window=31, out_csv=None):

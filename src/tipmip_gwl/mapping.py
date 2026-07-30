@@ -388,7 +388,7 @@ def map_model(
     Step 3: invert onto the common GWL grid (:func:`invert_to_grid`).
 
     This is the single source of truth for the mapping algorithm; the CMIP-aware
-    drivers (``build.build_mapping_dataset``, ``scripts/run_diagnostics.py``)
+    drivers (``build.build_mapping_dataset``, ``paper/helper_diagnostics.py``)
     call it rather than re-implementing the steps.
 
     extra_vars : dict {varname: (years, values)} to resample onto the T grid

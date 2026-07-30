@@ -1,6 +1,7 @@
 # Agent context: tipmip-gwl
 
-Orientation for coding agents. Human docs: `README.md` and `docs/`.
+Orientation for coding agents. Human docs: `README.md`, `docs/using_mappings.md`,
+`docs/building_mappings.md`, `docs/staged_data.md`.
 
 ## Three purposes
 
@@ -28,6 +29,7 @@ Maintainer builds: `from tipmip_gwl.build import write_products, write_rampdown_
 
 | Module | Role |
 |--------|------|
+| `ensemble.py` | Included Tier-1 model list (`INCLUDED_MODELS`); strict build/sync gate |
 | `mapping.py` | Anomaly → 31-yr smooth + PAVA → invert |
 | `baseline.py` | piControl reference, branch year, provenance |
 | `io.py` | Read gmstmon; calendar-aware annual mean |
@@ -39,16 +41,22 @@ Maintainer builds: `from tipmip_gwl.build import write_products, write_rampdown_
 - `src/tipmip_gwl/data/mappings/gwlmap_*_v1.nc` — 24 files (8 ramp-up + 16 ramp-down)
 - After local rebuild: `python scripts/sync_bundled_mappings.py`
 
+## Included ensemble
+
+Canonical Tier-1 model ids: `src/tipmip_gwl/ensemble.py` (`INCLUDED_MODELS`).
+Mapping builds, bundle sync, and paper figures use this list exclusively; missing
+data for any listed model raises `MissingEnsembleDataError`. Trial models in
+staging directories are ignored.
+
 ## Staged data (not in repo)
 
-```
-~/data/tipmip/tas/esm-up2p0/gmstmon/
-~/data/tipmip/tas/esm-piControl/gmstmon/
-~/data/tipmip/tas/esm-up2p0-gwl2p0-50y-dn2p0/gmstmon/
-~/data/tipmip/mlotst/esm-up2p0/          # native *_annualmax.nc
-```
+See [docs/staged_data.md](docs/staged_data.md). Mapping rebuild output: `mapping/`
+(gitignored except when syncing to bundle).
 
-Mapping rebuild output: `mapping/` (gitignored except when syncing to bundle).
+Site-specific HPC/rsync scripts are **not** in this public repo. Maintainer
+operational workflow (Levante build, laptop download, full rebuild): sibling clone
+**`tipmip-gwl-maintainer`** (`WORKFLOW.md`, `prepare-gmstmon/`, `rebuild_mappings_and_paper.sh`).
+Set `TIPMIP_GWL_MAINTAINER` to that clone path when working with those scripts.
 
 ## Commands
 
@@ -65,7 +73,7 @@ python paper/build_all.py
 ### UKESM mixed-layer depth (`mlotst`)
 
 - Native `*_annualmax.nc`: land is `mlotst = 0`, not NaN (ORCA grid).
-- `area_weighted_global_mean` in `paper/mlotst_remap_helpers.py` masks cells with
+- `area_weighted_global_mean` in `paper/helper_mlotst_remap.py` masks cells with
   `max(mlotst) > 0` before averaging.
 - Paper figures use native calendar-time files, not pre-remapped GWL-axis products.
 
@@ -77,7 +85,7 @@ python paper/build_all.py
 ### UKESM metadata
 
 - Branch year **2277** via `baseline.KNOWN_BRANCH_YEARS`.
-- Patch staged attrs: `scripts/patch_ukesm_branch_attrs.py --apply`.
+- Patch staged attrs: `scripts/fix_ukesm_branch_attrs.py --apply`.
 
 ### NorESM2-LM
 
@@ -92,15 +100,25 @@ python paper/build_all.py
 
 - Never equate ramp-up and ramp-down at the same GWL for the same model.
 
-## Paper figures (`build_all.py`)
+## Paper reproduction (`build_all.py`)
+
+Scripts are prefixed by role: `fig_*`, `table_*`, `helper_*`.
 
 | Output | Script |
 |--------|--------|
-| Mapping axes up/down | `plot_mapping_axis_up_down.py` |
-| piControl baseline | `figures_1_2.py` |
-| mlotst remap demo | `diagnostic_remap_demo.py` |
-| Fig. 5 global MLD hysteresis | `plot_hysteresis_mlotst.py` |
-| Table A1 / A2 | `table1.py`, `table_mono_max.py` |
+| `figures/fig_mapping_axis_up_down.png` | `fig_mapping_axis_up_down.py` |
+| `figures/fig_picontrol_baseline.png` | `fig_picontrol_baseline.py` |
+| `figures/fig_baseline_reference_comparison.png` | `fig_baseline_reference_comparison.py` |
+| `figures/fig_remap_demo.png` | `fig_remap_demo.py` |
+| `figures/fig_remap_binned_demo.png` | `fig_remap_binned_demo.py` |
+| `figures/fig_hysteresis_mlotst_dn4c.png` | `fig_hysteresis_mlotst.py` |
+| `tables/table_baseline_diagnostics.csv` | `table_baseline_diagnostics.py` (Appendix A1) |
+| `tables/table_mono_max.csv` | `table_mono_max.py` (Appendix A2) |
+| `tables/table_baseline_sensitivity.csv` | `table_baseline_sensitivity.py` |
+| `tables/table_window_sensitivity.csv` | `table_window_sensitivity.py` |
+
+Helpers: `helper_diagnostics.py`, `helper_mlotst_remap.py`, `helper_paper_style.py`,
+`helper_plot_diagnostics.py`.
 
 ## When editing
 

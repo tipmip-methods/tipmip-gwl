@@ -227,9 +227,9 @@ def discover_mappable_models(up2p0_dir, picontrol_dir, *, bundled_only=False):
     from .io import discover
 
     if bundled_only:
-        from tipmip_gwl import list_models
+        from tipmip_gwl.ensemble import INCLUDED_MODELS
 
-        allowed = set(list_models())
+        allowed = set(INCLUDED_MODELS)
     else:
         allowed = None
 

@@ -1,9 +1,9 @@
 """
-Build the SI monotonization table: per-model ``mono_max`` for each mapping leg.
+Build Appendix Table A2: per-model ``mono_max`` for each mapping leg.
 
 Reads ``monotonization_max`` from the bundled ``gwlmap_*.nc`` products (the
 same scalar shipped in each mapping file). This is separate from Table A1
-(``table1.py``), which covers baseline-reference diagnostics.
+(``table_baseline_diagnostics.py``), which covers baseline-reference diagnostics.
 
 Usage::
 
@@ -20,8 +20,8 @@ import csv
 from pathlib import Path
 
 import xarray as xr
-from mlotst_remap_helpers import bundled_models, mapping_index_by_leg
-from table1 import model_order_by_ref_full
+from helper_mlotst_remap import bundled_models, mapping_index_by_leg
+from table_baseline_diagnostics import model_order_by_ref_full
 
 DEFAULT_OUT_CSV = Path(__file__).resolve().parent / "tables" / "table_mono_max.csv"
 
@@ -104,12 +104,12 @@ if __name__ == "__main__":
     parser.add_argument(
         "--up2p0-dir",
         default=None,
-        help="ramp-up gmstmon dir (same as table1.py; sets model row order)",
+        help="ramp-up gmstmon dir (same as table_baseline_diagnostics.py; sets model row order)",
     )
     parser.add_argument(
         "--picontrol-dir",
         default=None,
-        help="piControl gmstmon dir (same as table1.py; sets model row order)",
+        help="piControl gmstmon dir (same as table_baseline_diagnostics.py; sets model row order)",
     )
     parser.add_argument("--window", type=int, default=31)
     parser.add_argument("--out-csv", default=str(DEFAULT_OUT_CSV))

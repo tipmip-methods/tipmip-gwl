@@ -6,7 +6,7 @@ anomaly; thick lines = monotone ``gwl_axis``.
 
 Usage::
 
-    python paper/plot_mapping_axis_up_down.py --mapping-dir mapping
+    python paper/fig_mapping_axis_up_down.py --mapping-dir mapping
 """
 
 from __future__ import annotations
@@ -17,12 +17,12 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 import xarray as xr
-from mlotst_remap_helpers import bundled_models, mapping_index_by_leg
-from paper_style import model_color_map
+from helper_mlotst_remap import bundled_models, mapping_index_by_leg
+from helper_paper_style import model_color_map
 
 PAPER_DIR = Path(__file__).resolve().parent
 DEFAULT_MAPPING_DIR = PAPER_DIR.parent / "mapping"
-DEFAULT_OUT = PAPER_DIR / "figures" / "mapping_axis_up_down.png"
+DEFAULT_OUT = PAPER_DIR / "figures" / "fig_mapping_axis_up_down.png"
 
 GWL_YLIM = (-1.5, 4.5)
 RAMP_UP_XLIM = (-5, 220)

@@ -2,15 +2,12 @@
 Smoothing-window sensitivity: how much does 21 vs 31 vs 41 years move the
 year assigned to a fixed GWL?
 
-Reproduces the robustness check used to justify keeping the protocol's 31-year
-window as a fixed choice rather than a free parameter: across all mappable
-models, the year assigned to a given GWL shifts by at most a few years between
-window=21 and window=41 -- comparable in size (at the nominal 2 degC/century
-rate) to the ~0.09 K baseline-definition sensitivity (baseline_sensitivity.py).
+CSV table supporting the robustness discussion (Sect. 2.3). Not reproduced in
+full in the manuscript appendix; values are summarised in prose.
 
 Usage::
 
-    python paper/window_sensitivity.py \\
+    python paper/table_window_sensitivity.py \\
         --up2p0-dir ~/data/tipmip/tas/esm-up2p0/gmstmon \\
         --picontrol-dir ~/data/tipmip/tas/esm-piControl/gmstmon
 """
@@ -35,7 +32,7 @@ from tipmip_gwl.mapping import MappingConfig, map_model
 WINDOWS = (21, 31, 41)
 GWL_TARGETS = (1.0, 1.5, 2.0)
 NOMINAL_RATE_DEGC_PER_YEAR = 0.02  # 2 degC/century, the protocol's nominal ramp
-DEFAULT_OUT_CSV = Path(__file__).resolve().parent / "tables" / "window_sensitivity.csv"
+DEFAULT_OUT_CSV = Path(__file__).resolve().parent / "tables" / "table_window_sensitivity.csv"
 
 
 def main(

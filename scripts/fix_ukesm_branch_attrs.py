@@ -12,10 +12,10 @@ Branch years are on the esm-up2p0 timeline (start reset to 1850), except
 
 Usage::
 
-    python scripts/patch_ukesm_branch_attrs.py --dry-run
-    python scripts/patch_ukesm_branch_attrs.py --apply
-    python scripts/patch_ukesm_branch_attrs.py --apply --tipmip-root ~/data/tipmip
-    python scripts/patch_ukesm_branch_attrs.py --apply --include-mlotst
+    python scripts/fix_ukesm_branch_attrs.py --dry-run
+    python scripts/fix_ukesm_branch_attrs.py --apply
+    python scripts/fix_ukesm_branch_attrs.py --apply --tipmip-root ~/data/tipmip
+    python scripts/fix_ukesm_branch_attrs.py --apply --include-mlotst
 """
 
 from __future__ import annotations
@@ -170,7 +170,7 @@ def main() -> None:
 
     root = args.tipmip_root.expanduser()
     mode = "APPLY" if args.apply else "DRY RUN"
-    print(f"=== patch_ukesm_branch_attrs ({mode}) ===")
+    print(f"=== fix_ukesm_branch_attrs ({mode}) ===")
     print(f"tipmip root: {root}")
 
     files = discover_files(root, include_mlotst=args.include_mlotst)

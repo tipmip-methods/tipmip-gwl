@@ -7,34 +7,24 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 
+from tipmip_gwl.ensemble import INCLUDED_MODELS
 from tipmip_gwl.io import discover, load_gmsat_nc
 
 MODEL_PALETTE = plt.cm.Dark2.colors
 
-# Canonical Tier-1 ensemble (alphabetical). Colours are stable across figures
-# even when a plot shows only one or a subset of models.
-TIER1_MODELS: tuple[str, ...] = (
-    "ACCESS-ESM1-5",
-    "EC-Earth3-ESM-1",
-    "GFDL-ESM2M",
-    "GISS-E2-1-G-CC2",
-    "IPSL-CM6-ESMCO2",
-    "MIROC-ES2L",
-    "NorESM2-LM",
-    "UKESM1-2-LL",
-)
+# Alias for paper scripts; canonical list lives in tipmip_gwl.ensemble.
+TIER1_MODELS = INCLUDED_MODELS
 
 _TIER1_COLOR_LOOKUP = {
-    model: MODEL_PALETTE[i % len(MODEL_PALETTE)]
-    for i, model in enumerate(TIER1_MODELS)
+    model: MODEL_PALETTE[i % len(MODEL_PALETTE)] for i, model in enumerate(TIER1_MODELS)
 }
 
 
 def model_color_map(models: list[str]) -> dict[str, str]:
     """Stable Dark2 colour per model (canonical Tier-1 order).
 
-    Used by ``mapping_axis_up_down.png``, ``baseline_reference_comparison.png``,
-    ``picontrol_baseline.png``, and diagnostic-remap figures. Unknown model ids
+    Used by ``fig_mapping_axis_up_down.png``, ``fig_baseline_reference_comparison.png``,
+    ``fig_picontrol_baseline.png``, and ``fig_remap_*.png`` figures. Unknown model ids
     fall back to unused palette slots in sorted order.
     """
     ordered = sorted(dict.fromkeys(models))
@@ -44,7 +34,10 @@ def model_color_map(models: list[str]) -> dict[str, str]:
         if model in _TIER1_COLOR_LOOKUP:
             out[model] = _TIER1_COLOR_LOOKUP[model]
         else:
-            while fallback_i < len(MODEL_PALETTE) and MODEL_PALETTE[fallback_i] in out.values():
+            while (
+                fallback_i < len(MODEL_PALETTE)
+                and MODEL_PALETTE[fallback_i] in out.values()
+            ):
                 fallback_i += 1
             out[model] = MODEL_PALETTE[fallback_i % len(MODEL_PALETTE)]
             fallback_i += 1
@@ -52,7 +45,7 @@ def model_color_map(models: list[str]) -> dict[str, str]:
 
 
 def models_sorted_by_picontrol_mean(picontrol_dir: Path | str) -> list[str]:
-    """Same vertical ordering as ``mean_tas_piControl.py`` (low → high piControl mean)."""
+    """Same vertical ordering as ``fig_baseline_reference_comparison.py`` (low → high piControl mean)."""
     pi_files = discover(picontrol_dir)
     entries: list[tuple[float, str]] = []
     for model, path in pi_files.items():

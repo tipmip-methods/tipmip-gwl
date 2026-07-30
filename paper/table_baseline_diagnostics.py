@@ -1,15 +1,13 @@
 """
-Build Table 1 (per-model baseline and robustness diagnostics) as a CSV.
+Build Appendix Table A1 (per-model baseline and robustness diagnostics) as a CSV.
 
 Combines branch year, piControl drift, and the full-vs-window baseline
-comparison (the same computation as baseline_sensitivity.py) into one
-per-model table, matching the SI table in the paper draft.
-
-Monotonization diagnostics live in ``table_mono_max.py``.
+comparison into one per-model table (Appendix Table A1). Related CSV:
+``table_baseline_sensitivity.csv``. Monotonization: ``table_mono_max.py`` (A2).
 
 Usage::
 
-    python paper/table1.py \\
+    python paper/table_baseline_diagnostics.py \\
         --up2p0-dir ~/data/tipmip/tas/esm-up2p0/gmstmon \\
         --picontrol-dir ~/data/tipmip/tas/esm-piControl/gmstmon
 """
@@ -24,12 +22,11 @@ from pathlib import Path
 import numpy as np
 
 PAPER_DIR = Path(__file__).resolve().parent
-REPO_ROOT = PAPER_DIR.parent
-sys.path.insert(0, str(REPO_ROOT / "scripts"))
+sys.path.insert(0, str(PAPER_DIR))
 
-from run_diagnostics import run_diagnostics
+from helper_diagnostics import run_diagnostics
 
-DEFAULT_OUT_CSV = Path(__file__).resolve().parent / "tables" / "table1.csv"
+DEFAULT_OUT_CSV = Path(__file__).resolve().parent / "tables" / "table_baseline_diagnostics.csv"
 
 FIELDNAMES = (
     "model",
@@ -95,7 +92,7 @@ def main(up2p0_dir, picontrol_dir, window=31, out_csv=None):
             }
         )
 
-    # Same order as Figure 3 (mean_tas_piControl.py): ascending full piControl mean.
+    # Same order as fig_baseline_reference_comparison.py: ascending full piControl mean.
     order = model_order_by_ref_full(up2p0_dir, picontrol_dir, window=window)
     rows.sort(key=lambda r: order.index(r["model"]))
 
@@ -133,7 +130,7 @@ def main(up2p0_dir, picontrol_dir, window=31, out_csv=None):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Build Table 1 as a CSV.")
+    parser = argparse.ArgumentParser(description="Build Table A1 as a CSV.")
     parser.add_argument("--up2p0-dir", required=True)
     parser.add_argument("--picontrol-dir", required=True)
     parser.add_argument("--window", type=int, default=31)

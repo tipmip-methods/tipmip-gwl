@@ -27,11 +27,6 @@ TAS_TABLES = ("Amon", "APmon")
 TIMERANGE_RE = re.compile(r"^(?P<tstart>\d+)-(?P<tend>\d+)$")
 
 
-def default_tas_chunks_manifest() -> Path:
-    """Default path list: ``scripts/data/tas_chunks.tsv``."""
-    return Path(__file__).resolve().parent / "data" / "tas_chunks.tsv"
-
-
 def parse_tas_chunk(path: Path | str) -> dict | None:
     """Parse CMIP-style ``tas_*`` chunk filename; return metadata or ``None``."""
     path = Path(path)
@@ -384,7 +379,7 @@ def main(argv: list[str] | None = None) -> None:
         "--manifest",
         type=Path,
         default=None,
-        help="TSV with columns model, experiment_id, path (default: scripts/data/tas_chunks.tsv)",
+        help="TSV with columns model, experiment_id, path (required for batch mode)",
     )
     parser.add_argument(
         "--exp",
@@ -441,7 +436,10 @@ def main(argv: list[str] | None = None) -> None:
     if not args.exp or not args.outdir:
         parser.error("batch mode requires --exp and --outdir")
 
-    manifest = args.manifest or default_tas_chunks_manifest()
+    if not args.manifest:
+        parser.error("batch mode requires --manifest (path to tas chunk TSV)")
+
+    manifest = args.manifest
     if not manifest.is_file():
         parser.error(f"manifest not found: {manifest}")
 

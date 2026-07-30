@@ -1,9 +1,16 @@
 #!/usr/bin/env python3
 """
-Sanity-table driver for staged ramp-up gmstmon files.
+Per-model ramp-up diagnostics from staged gmstmon (shared by paper tables/figures).
 
-Maintainer script — not part of the installed user API. For diagnostic figures see
-``paper/plot_diagnostics.py`` / ``paper/figures_1_2.py``.
+Computes baseline method, piControl drift, max GWL, monotonization, etc. Used by
+``table_baseline_diagnostics.py``, ``fig_picontrol_baseline.py``, and related
+paper scripts. Not part of the installed user API.
+
+Standalone sanity table::
+
+    python paper/helper_diagnostics.py \\
+        --up2p0-dir ~/data/tipmip/tas/esm-up2p0/gmstmon \\
+        --picontrol-dir ~/data/tipmip/tas/esm-piControl/gmstmon
 """
 
 from __future__ import annotations
@@ -47,9 +54,9 @@ def run_diagnostics(up2p0_dir, picontrol_dir, window=31, detrend=False, *, bundl
     ru_files = discover(up2p0_dir)
     pi_files = discover(picontrol_dir)
     if bundled_only:
-        from tipmip_gwl import list_models
+        from tipmip_gwl.ensemble import INCLUDED_MODELS
 
-        allowed = set(list_models())
+        allowed = set(INCLUDED_MODELS)
     else:
         allowed = None
     diags = []
@@ -197,7 +204,7 @@ def print_table(diags):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(
-        description="TIPMIP time->GWL baseline diagnostics for staged gmstmon files."
+        description="Per-model ramp-up diagnostics for staged gmstmon files."
     )
     parser.add_argument("--up2p0-dir", required=True)
     parser.add_argument("--picontrol-dir", required=True)

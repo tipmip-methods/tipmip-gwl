@@ -1,8 +1,8 @@
 """
 Diagnostic figures for the time->GWL mapping (paper reproduction).
 
-Takes the list of ``ModelDiag`` records from
-:func:`run_diagnostics` from ``scripts/run_diagnostics.py``. Requires matplotlib.
+Takes the list of ``ModelDiag`` records from :func:`helper_diagnostics.run_diagnostics`.
+Requires matplotlib.
 """
 
 from __future__ import annotations
@@ -51,8 +51,8 @@ def _branch_window_pi(pi_years, pi_gmsat, branch_year, *, window: int = BRANCH_W
 def plot_diagnostics(diags, outdir, *, model_colors=None, rampup=True, picontrol=True):
     """Diagnostic figures written to ``outdir``.
 
-    When ``rampup`` is True, writes rampup_anomaly.png. When ``picontrol`` is
-    True, writes picontrol_baseline.png. Returns ``(rampup_path, picontrol_path)``.
+    When ``rampup`` is True, writes ``fig_rampup_anomaly.png``. When ``picontrol`` is
+    True, writes ``fig_picontrol_baseline.png``. Returns ``(rampup_path, picontrol_path)``.
     """
     import matplotlib
 
@@ -101,7 +101,7 @@ def plot_diagnostics(diags, outdir, *, model_colors=None, rampup=True, picontrol
         axA.set_xlim(-5, 220)
         axA.legend(ncol=2, framealpha=0.0, loc="upper left", bbox_to_anchor=(0, 0.96))
         figA.tight_layout()
-        pathA = outdir / "rampup_anomaly.png"
+        pathA = outdir / "fig_rampup_anomaly.png"
         figA.savefig(pathA, dpi=300)
         plt.close(figA)
 
@@ -272,7 +272,7 @@ def plot_diagnostics(diags, outdir, *, model_colors=None, rampup=True, picontrol
             handlelength=1.8,
         )
 
-        pathB = outdir / "picontrol_baseline.png"
+        pathB = outdir / "fig_picontrol_baseline.png"
         figB.savefig(pathB, dpi=300, bbox_inches="tight")
         plt.close(figB)
 

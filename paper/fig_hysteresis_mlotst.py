@@ -6,7 +6,7 @@ MIROC-ES2L only, with a bottom bar panel for down minus up at each grid tick.
 
 Usage::
 
-    python paper/plot_hysteresis_mlotst.py \\
+    python paper/fig_hysteresis_mlotst.py \\
         --mlotst-up-dir ~/data/tipmip/mlotst/esm-up2p0 \\
         --mlotst-dn-dir ~/data/tipmip/mlotst/esm-up2p0-gwl4p0-50y-dn2p0 \\
         --mapping-dir mapping
@@ -26,7 +26,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import xarray as xr
 from matplotlib import gridspec
-from mlotst_remap_helpers import (
+from helper_mlotst_remap import (
     GLOBAL_MLOTST_YLABEL,
     area_weighted_global_mean,
     calendar_years,
@@ -34,13 +34,13 @@ from mlotst_remap_helpers import (
     lat_name,
     mapping_index_by_leg,
 )
-from paper_style import model_color_map
+from helper_paper_style import model_color_map
 
 from tipmip_gwl.mapping import GWL_GRID_STEP
 from tipmip_gwl.product import resample_to_gwl
 
 PAPER_DIR = Path(__file__).resolve().parent
-DEFAULT_OUT = PAPER_DIR / "figures" / "hysteresis_mlotst_4c.png"
+DEFAULT_OUT = PAPER_DIR / "figures" / "fig_hysteresis_mlotst_dn4c.png"
 DEFAULT_MODEL = "MIROC-ES2L"
 DEFAULT_DN_LEG = "ramp-down-4c"
 GWL_MIN = 0.0

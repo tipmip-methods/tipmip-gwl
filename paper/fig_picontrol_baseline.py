@@ -1,12 +1,11 @@
 """
-Figure 2: piControl GMSAT with the full-run baseline.
+piControl GMSAT and baseline definitions (manuscript figure).
 
-Figure 1 (ramp-up / ramp-down monotone GWL axes) is produced by
-``plot_mapping_axis_up_down.py`` — see ``build_all.py``.
+Ramp-up / ramp-down monotone GWL axes: ``fig_mapping_axis_up_down.py``.
 
 Usage::
 
-    python paper/figures_1_2.py \\
+    python paper/fig_picontrol_baseline.py \\
         --up2p0-dir ~/data/tipmip/tas/esm-up2p0/gmstmon \\
         --picontrol-dir ~/data/tipmip/tas/esm-piControl/gmstmon
 """
@@ -18,12 +17,11 @@ import sys
 from pathlib import Path
 
 PAPER_DIR = Path(__file__).resolve().parent
-REPO_ROOT = PAPER_DIR.parent
-sys.path.insert(0, str(REPO_ROOT / "scripts"))
 sys.path.insert(0, str(PAPER_DIR))
 
-from run_diagnostics import print_table, run_diagnostics
-from plot_diagnostics import plot_diagnostics
+from helper_diagnostics import print_table, run_diagnostics
+from helper_plot_diagnostics import plot_diagnostics
+
 DEFAULT_OUT_DIR = PAPER_DIR / "figures"
 
 

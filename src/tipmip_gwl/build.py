@@ -21,6 +21,11 @@ import xarray as xr
 
 from . import baseline as bl
 from . import mapping
+from .ensemble import (
+    MissingEnsembleDataError,
+    require_discovered,
+    resolve_model_list,
+)
 from .io import discover, load_gmsat_nc, read_attrs
 from .mapping import gwl_grid, gwl_grid_rampdown
 from .product import DEFAULT_EXPERIMENT, NotMappable
@@ -461,33 +466,40 @@ def write_products(
     window: int = 31,
     detrend: bool = False,
     mapping_version: str = "v1",
+    models: list[str] | tuple[str, ...] | None = None,
 ):
-    """Build and write one mapping file per mappable model in ``up2p0_dir``.
+    """Build and write ramp-up mappings for the included ensemble.
 
-    Returns ``(written, skipped)`` where ``written`` is a list of (model, path)
-    and ``skipped`` is a list of (model, reason).
+    Only models in :data:`~tipmip_gwl.ensemble.INCLUDED_MODELS` (or ``models``)
+    are built; extra gmstmon files in the directories are ignored. Raises
+    :class:`~tipmip_gwl.ensemble.MissingEnsembleDataError` if any listed model
+    lacks ramp-up or piControl gmstmon, or if mapping fails.
+
+    Returns ``(written, skipped)`` where ``skipped`` is always empty.
     """
+    model_list = resolve_model_list(models)
     ru_files = discover(up2p0_dir)
     pi_files = discover(picontrol_dir)
-    written, skipped = [], []
+    require_discovered(model_list, ru_files, label="ramp-up")
+    require_discovered(model_list, pi_files, label="piControl")
 
-    for model in sorted(ru_files):
+    written: list[tuple[str, Path]] = []
+    for model in model_list:
         try:
             ds = build_mapping_dataset(
                 model,
                 ru_files[model],
-                pi_files.get(model),
+                pi_files[model],
                 window=window,
                 detrend=detrend,
                 mapping_version=mapping_version,
             )
         except NotMappable as exc:
-            skipped.append((model, str(exc)))
-            continue
+            raise MissingEnsembleDataError(f"Cannot map {model}: {exc}") from exc
         path = write_mapping(ds, outdir)
         written.append((model, path))
 
-    return written, skipped
+    return written, []
 
 
 def build_rampdown_mapping_dataset(
@@ -717,31 +729,39 @@ def write_rampdown_products(
     window: int = 31,
     t_grid=None,
     mapping_version: str = "v1",
+    models: list[str] | tuple[str, ...] | None = None,
 ):
-    """Build and write one ramp-down mapping file per mappable model in ``dn_dir``."""
+    """Build and write ramp-down mappings for the included ensemble.
+
+    Same ensemble filtering and strict missing-data checks as
+    :func:`write_products`.
+    """
+    model_list = resolve_model_list(models)
     dn_files = discover(dn_dir)
     pi_files = discover(picontrol_dir)
-    written, skipped = [], []
+    require_discovered(model_list, dn_files, label="ramp-down")
+    require_discovered(model_list, pi_files, label="piControl")
+
+    written: list[tuple[str, Path]] = []
     grid = _t_grid_for_dn_dir(dn_dir) if t_grid is None else np.asarray(t_grid, float)
 
-    for model in sorted(dn_files):
+    for model in model_list:
         try:
             ds = build_rampdown_mapping_dataset(
                 model,
                 dn_files[model],
-                pi_files.get(model),
+                pi_files[model],
                 window=window,
                 t_grid=grid,
                 mapping_version=mapping_version,
                 mapping_dir=outdir,
             )
         except NotMappable as exc:
-            skipped.append((model, str(exc)))
-            continue
+            raise MissingEnsembleDataError(f"Cannot map {model}: {exc}") from exc
         path = write_mapping(ds, outdir)
         written.append((model, path))
 
-    return written, skipped
+    return written, []
 
 
 def main(argv=None):
@@ -772,7 +792,7 @@ def main(argv=None):
     if args.leg == "ramp-up":
         if not args.up2p0_dir:
             parser.error("--up2p0-dir is required for ramp-up")
-        written, skipped = write_products(
+        written, _skipped = write_products(
             args.up2p0_dir,
             args.picontrol_dir,
             args.outdir,
@@ -783,7 +803,7 @@ def main(argv=None):
     else:
         if not args.dn_dir:
             parser.error("--dn-dir is required for ramp-down")
-        written, skipped = write_rampdown_products(
+        written, _skipped = write_rampdown_products(
             args.dn_dir,
             args.picontrol_dir,
             args.outdir,
@@ -792,9 +812,7 @@ def main(argv=None):
         )
     for model, path in written:
         print(f"wrote {model:16s} -> {path}")
-    for model, reason in skipped:
-        print(f"skip  {model:16s} -- {reason}")
-    print(f"\n{len(written)} written, {len(skipped)} skipped")
+    print(f"\n{len(written)} written")
 
 
 def main_rampdown(argv=None):

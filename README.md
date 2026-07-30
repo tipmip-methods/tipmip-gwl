@@ -2,116 +2,49 @@
 
 Re-index TIPMIP ramp-up and ramp-down output from **calendar time** onto a **global warming level (GWL)** axis so models can be compared at the same warming rather than the same year.
 
-Install the package, load a bundled mapping, and apply it to your own annual diagnostic:
-
 ```bash
 pip install -e .
 ```
 
 ```python
-from tipmip_gwl import load_mapping, list_models, resample_to_gwl, relabel_to_gwl
+import xarray as xr
+from tipmip_gwl import load_mapping, resample_to_gwl
 
-print(list_models())
-# ['ACCESS-ESM1-5', 'EC-Earth3-ESM-1', 'GFDL-ESM2M', ...]
-
+# Mapping product: xarray Dataset (year_of_gwl, gwl_axis, baseline metadata)
 mp = load_mapping("GFDL-ESM2M")
-on_gwl = resample_to_gwl(mp, my_annual_diagnostic)   # shared 0.02 °C grid
-# on_native = relabel_to_gwl(mp, my_annual_diagnostic)  # model's own GWL axis
+
+# Your annual variable: xarray DataArray (or Dataset) with a "year"
+# dimension — global mean, regional index, or full grid (lat/lon, etc.)
+diagnostic = xr.open_dataset("mlotst_GFDL-ESM2M_esm-up2p0.nc")["mlotst"]  # (year, …)
+
+# Same values; "year" replaced by shared GWL coordinate (0.02 °C steps)
+on_gwl = resample_to_gwl(mp, diagnostic)  # (gwl, …)
 ```
 
-Full API guide: [docs/using_mappings.md](docs/using_mappings.md).
+Worked example with a synthetic diagnostic:
+[examples/resample_diagnostic.ipynb](examples/resample_diagnostic.ipynb).
 
-## Two transforms
-
-| Function | Output axis | Use when |
-|----------|-------------|----------|
-| `resample_to_gwl` | shared GWL grid (0–4 °C ramp-up; −2–5 °C ramp-down; 0.02 °C steps) | stacking or comparing models at the same GWL |
-| `relabel_to_gwl` | native per-model GWL (uneven, unbinned) | plotting one model without binning |
-
-Both operate on **annual** data whose coordinate values are calendar years. Values are never extrapolated beyond each model's realised warming range.
+**Users:** [docs/using_mappings.md](docs/using_mappings.md) — API reference.  
+**Maintainers:** [docs/building_mappings.md](docs/building_mappings.md) and [docs/staged_data.md](docs/staged_data.md).
 
 ## Bundled mappings
 
-The published Tier-1 ensemble (mapping version `v1`) ships inside the package:
+Mapping version `v1` ships inside the package — no separate download:
 
-- **8 ramp-up** mappings (`esm-up2p0`) — default via `load_mapping(model)`
-- **16 ramp-down** mappings (8 from the 2 °C hold, 8 from the 4 °C hold) — via `load_mapping(model, leg="ramp-down-2c")` or `leg="ramp-down-4c"`
+- **8 ramp-up** (`load_mapping(model)`)
+- **16 ramp-down** (`leg="ramp-down-2c"` or `"ramp-down-4c"`)
 
-You do not need to download separate NetCDF files for these legs. Zero-emission-hold mappings are not bundled.
+Each file is a **coordinate product** (`year_of_gwl`, `gwl_axis`, baseline metadata), not remapped fields. Per-model baseline details: `paper/tables/table_baseline_diagnostics.csv` (Appendix A1).
 
-Each mapping file is a **coordinate product** (`year_of_gwl`, `gwl_axis`, baseline and provenance metadata), not remapped fields. Apply it to your own variable with the functions above.
+Monotone GWL axes for ramp-up and ramp-down
 
-To use a locally rebuilt mapping instead, pass `mapping_dir=` or `path=` to `load_mapping`.
+## Install extras
 
-### Ensemble overview
-
-Ramp-up and both ramp-down legs for each model share one piControl baseline. Thin lines in the figure below are annual GMSAT anomalies; thick lines are the monotone axis used for re-indexing (31-year centred running mean + isotonic regression).
-
-![Monotone GWL axes for ramp-up and ramp-down](paper/figures/mapping_axis_up_down.png)
-
-| Model | Legs bundled | Baseline caveat |
-|-------|--------------|-----------------|
-| IPSL-CM6-ESMCO2 | ramp-up, dn-2 °C, dn-4 °C | — centred 31-yr window at branch year (1849) |
-| GISS-E2-1-G-CC2 | ramp-up, dn-2 °C, dn-4 °C | — centred window (2156) |
-| UKESM1-2-LL | ramp-up, dn-2 °C, dn-4 °C | Branch year **2277** patched in code (`KNOWN_BRANCH_YEARS`; wrong or missing in staged attrs) |
-| GFDL-ESM2M | ramp-up, dn-2 °C, dn-4 °C | — centred window (1961) |
-| NorESM2-LM | ramp-up, dn-2 °C, dn-4 °C | **Full piControl mean** — branch year (1600) outside staged record (1851–2100) |
-| ACCESS-ESM1-5 | ramp-up, dn-2 °C, dn-4 °C | **Trailing 31-yr window** — branch at first piControl year (271); centred window not possible |
-| EC-Earth3-ESM-1 | ramp-up, dn-2 °C, dn-4 °C | **Trailing 31-yr window** — branch at piControl start (1850) |
-| MIROC-ES2L | ramp-up, dn-2 °C, dn-4 °C | — centred window (2001) |
-
-Per-model drift, reference temperatures, and monotonicity diagnostics: `paper/tables/table1.csv`, `paper/tables/table_mono_max.csv` (also Tables A1–A2 in the GMD paper).
-
-## Install
-
-Runtime dependencies are listed in [pyproject.toml](pyproject.toml) and [requirements.txt](requirements.txt).
-For paper reproduction and tests:
-
-```bash
-pip install -e ".[paper,test]"
-# or: pip install -r requirements-dev.txt && pip install -e .
-```
-
-## Repository layout
-
-This repo serves three purposes:
-
-1. **User library** — bundled mappings + `resample_to_gwl` / `relabel_to_gwl`
-2. **Paper reproduction** — `paper/build_all.py` and committed figures/tables
-3. **Mapping pipeline** — rebuild `gwlmap_*.nc` from staged gmstmon (`scripts/`, `tipmip-gwl-build`)
-
-```
-src/tipmip_gwl/          user library (bundled mappings)
-scripts/                 gmstmon build, diagnostics, sync (maintainers)
-docs/                    user and maintainer guides
-examples/                tutorial notebook
-paper/                   reproduce figures/tables
-mapping/                 local rebuild output (gitignored)
-```
-
-## Documentation
-
-| Guide | Audience |
-|-------|----------|
-| [docs/README.md](docs/README.md) | **Doc index** — user vs maintainer guides |
-| [docs/using_mappings.md](docs/using_mappings.md) | **Users** — resample, relabel, ensemble stacks |
-| [docs/building_mappings.md](docs/building_mappings.md) | **Maintainers** — build mappings, sync bundled data |
-| [docs/gmstmon_pipeline.md](docs/gmstmon_pipeline.md) | **Maintainers** — tas → gmstmon |
-| [docs/paper_figures.md](docs/paper_figures.md) | **Paper reproduction** — `paper/build_all.py` |
-| [AGENTS.md](AGENTS.md) | **Coding agents** — architecture, gotchas, commands |
-
-## Reproducing paper figures
-
-Paper figures and tables are built from staged TIPMIP data, not from the library alone. See [docs/paper_figures.md](docs/paper_figures.md).
-
-## Tutorial
-
-Open [examples/resample_diagnostic.ipynb](examples/resample_diagnostic.ipynb) for a
-worked example of `load_mapping` → `resample_to_gwl` on a synthetic diagnostic.
+Paper reproduction and tests: `pip install -e ".[paper,test]"` (see [pyproject.toml](pyproject.toml)).
 
 ## Citation
 
-If you use these mappings or the resampling method in published work, cite the accompanying GMD paper (in preparation) and pin the package version (`tipmip_gwl.__version__`) and mapping version (`v1`).
+Cite the accompanying GMD paper (in preparation) and pin `tipmip_gwl.__version__` and mapping version `v1`.
 
 ## License
 

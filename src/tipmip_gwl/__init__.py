@@ -8,9 +8,16 @@ User API::
     from tipmip_gwl import load_mapping, list_models, resample_to_gwl, relabel_to_gwl
 
 Maintainer tooling lives outside the package: ``scripts/build_gmstmon.py``,
-``scripts/run_diagnostics.py``, ``tipmip_gwl.build``, and ``paper/``.
+``tipmip_gwl.build``, ``paper/helper_diagnostics.py``, and other ``paper/`` scripts.
 """
 
+from .ensemble import (
+    MissingEnsembleDataError,
+    INCLUDED_MODELS,
+    REQUIRED_GMSTMON_EXPERIMENTS,
+    included_models,
+    required_gmstmon_experiments,
+)
 from .product import (
     DEFAULT_MAPPING_VERSION,
     LEG_RAMP_DOWN_2C,
@@ -29,8 +36,13 @@ __all__ = [
     "LEG_RAMP_UP",
     "LEG_RAMP_DOWN_2C",
     "LEG_RAMP_DOWN_4C",
+    "MissingEnsembleDataError",
+    "INCLUDED_MODELS",
+    "REQUIRED_GMSTMON_EXPERIMENTS",
     "load_mapping",
     "list_models",
+    "included_models",
+    "required_gmstmon_experiments",
     "resample_to_gwl",
     "relabel_to_gwl",
     "__version__",

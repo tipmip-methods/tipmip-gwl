@@ -9,7 +9,7 @@ GWL via ``relabel_to_gwl`` (native forward map, not ``resample_to_gwl``).
 
 Usage::
 
-    python paper/diagnostic_remap_demo.py --mlotst-dir ~/data/tipmip/mlotst/esm-up2p0 --mapping-dir mapping
+    python paper/fig_remap_demo.py --mlotst-dir ~/data/tipmip/mlotst/esm-up2p0 --mapping-dir mapping
 """
 
 from __future__ import annotations
@@ -29,7 +29,7 @@ from matplotlib.patches import FancyArrowPatch
 
 from tipmip_gwl.product import relabel_to_gwl
 
-from mlotst_remap_helpers import (
+from helper_mlotst_remap import (
     GLOBAL_MLOTST_YLABEL,
     area_weighted_global_mean,
     bundled_models,
@@ -38,7 +38,7 @@ from mlotst_remap_helpers import (
     lat_name,
     mapping_index_by_rampup_model,
 )
-from paper_style import model_color_map
+from helper_paper_style import model_color_map
 
 GWL_MAX = 4.0
 
@@ -132,7 +132,7 @@ def main(mlotst_dir, mapping_dir, out_path):
     print(f"Saved {out_path}")
 
 
-DEFAULT_OUT = Path(__file__).resolve().parent / "figures" / "diagnostic_remap_demo.png"
+DEFAULT_OUT = Path(__file__).resolve().parent / "figures" / "fig_remap_demo.png"
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(

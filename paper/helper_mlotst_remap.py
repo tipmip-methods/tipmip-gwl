@@ -7,20 +7,35 @@ from pathlib import Path
 import numpy as np
 import xarray as xr
 
+from tipmip_gwl.ensemble import (
+    INCLUDED_MODELS,
+    MissingEnsembleDataError,
+)
 from tipmip_gwl.io import model_label
 
 GLOBAL_MLOTST_YLABEL = "Global-mean annual-max mixed-layer depth (m)"
 
 
 def bundled_models(*model_dicts: dict[str, object]) -> list[str]:
-    """Models present in every dict and in the shipped ``v1`` bundle."""
-    from tipmip_gwl import list_models
+    """Included ensemble models present in every supplied index.
 
-    allowed = set(list_models())
+    Raises :class:`~tipmip_gwl.ensemble.MissingEnsembleDataError` if any
+    :data:`~tipmip_gwl.ensemble.INCLUDED_MODELS` member is missing from the
+    intersection.
+    """
+    allowed = set(INCLUDED_MODELS)
     if not model_dicts:
-        return sorted(allowed)
+        return list(INCLUDED_MODELS)
     keys = set.intersection(*(set(d.keys()) for d in model_dicts))
-    return sorted(keys & allowed)
+    selected = sorted(keys & allowed)
+    missing = [m for m in INCLUDED_MODELS if m not in selected]
+    if missing:
+        labels = ", ".join(f"{i}" for i, d in enumerate(model_dicts))
+        raise MissingEnsembleDataError(
+            "Included model(s) missing from mapping index intersection "
+            f"({labels}): {', '.join(missing)}"
+        )
+    return selected
 
 
 def lat_name(ds: xr.Dataset) -> str:
