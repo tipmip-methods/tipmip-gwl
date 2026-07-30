@@ -141,7 +141,7 @@ def _mapping_search_roots(
     elif leg == LEG_RAMP_UP:
         roots.append(bundled_mappings_dir())
     else:
-        roots.extend([Path.cwd() / "mapping", bundled_mappings_dir()])
+        roots.append(bundled_mappings_dir())
     seen: set[Path] = set()
     ordered: list[Path] = []
     for root in roots:
@@ -251,7 +251,7 @@ def list_models(
     """Return sorted included model ids with a bundled mapping file for ``leg``.
 
     Only models in :data:`~tipmip_gwl.ensemble.INCLUDED_MODELS` are returned;
-    trial mappings (e.g. CESM2) in ``mapping_dir`` are ignored.
+    extra files in ``mapping_dir`` for other models are ignored.
     """
     leg = _normalize_leg(leg)
     found: set[str] = set()
@@ -307,9 +307,9 @@ def load_mapping(
 
     By default opens the bundled **ramp-up** mapping. Ramp-down legs
     (``"ramp-down-2c"``, ``"ramp-down-4c"``) are also bundled — pass ``leg=``
-    to select them. Use ``mapping_dir="mapping/"`` for a local rebuild. Long CMIP
-    ``experiment_id`` strings and explicit ``path=`` are escape hatches for
-    advanced use.
+    to select them. By default reads from sibling ``tipmip-gwl-mappings/`` (or
+    ``TIPMIP_GWL_MAPPINGS``). Long CMIP ``experiment_id`` strings and explicit
+    ``path=`` are escape hatches for advanced use.
 
     Parameters
     ----------
@@ -322,9 +322,8 @@ def load_mapping(
     experiment : str, optional
         Exact CMIP experiment id (overrides ``leg`` filename matching).
     mapping_dir : path-like, optional
-        Directory of ``gwlmap_*.nc`` files. When omitted, uses the bundled data
-        (ramp-up and ramp-down legs), or ``./mapping/`` then bundled for
-        ramp-down if a file is missing from the bundle.
+        Directory of ``gwlmap_*.nc`` files. Default: sibling
+        ``tipmip-gwl-mappings/`` (see :func:`default_mappings_dir`).
     path : path-like, optional
         Open this file directly (bypasses ``leg`` / ``mapping_dir`` search).
     """

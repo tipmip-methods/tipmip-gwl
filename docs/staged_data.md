@@ -55,10 +55,10 @@ python paper/build_all.py \
   --dn4-dir ~/data/tipmip/tas/esm-up2p0-gwl4p0-50y-dn2p0/gmstmon
 ```
 
-Rebuilds `mapping/` when gmstmon is staged, then runs each `paper/*.py` script.
+Rebuilds mapping products in ``tipmip-gwl-mappings/`` when gmstmon is staged,
+then runs each `paper/*.py` script.
 Outputs: `paper/figures/`, `paper/tables/`. Ramp-down steps are skipped if dn gmstmon
-is missing. After rebuilding mappings, run `python scripts/sync_bundled_mappings.py`
-to update the sibling `tipmip-gwl-mappings/` snapshot.
+is missing.
 
 Mapping build detail: [building_mappings.md](building_mappings.md).  
 Lighter tutorial: [examples/resample_diagnostic.ipynb](../examples/resample_diagnostic.ipynb).

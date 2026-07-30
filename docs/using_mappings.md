@@ -16,7 +16,7 @@ mp = load_mapping("GFDL-ESM2M")                        # xr.Dataset, ramp-up
 mp_dn = load_mapping("GFDL-ESM2M", leg="ramp-down-4c") # xr.Dataset, ramp-down
 ```
 
-Local rebuild instead of the bundled snapshot: `load_mapping(..., mapping_dir="mapping/")`
+Local rebuild instead of the sibling snapshot: `load_mapping(..., mapping_dir=...)`
 or explicit `path=`. Each mapping is an **xarray Dataset** with coordinates
 `year_of_gwl(gwl)` and `gwl_axis(year)` — pass it to `resample_to_gwl` /
 `relabel_to_gwl`.

@@ -1,7 +1,7 @@
 """
 Build every figure and table for the paper with one command.
 
-Rebuilds the mapping/ data product for ramp-up and ramp-down legs when data is
+Rebuilds the mapping product for ramp-up and ramp-down legs when data is
 staged, then runs each paper/*.py script in sequence with consistent paths. Each
 step is also runnable standalone (see its own docstring) -- this is purely an
 orchestrator, no logic lives here.
@@ -24,6 +24,7 @@ from pathlib import Path
 import xarray as xr
 
 from tipmip_gwl.build import write_products, write_rampdown_products
+from tipmip_gwl.product import default_mappings_dir
 
 PAPER_DIR = Path(__file__).resolve().parent
 REPO_ROOT = PAPER_DIR.parent
@@ -46,7 +47,7 @@ DEFAULT_MLOTST_DIR = Path.home() / "data/tipmip/mlotst/esm-up2p0"
 DEFAULT_DN_DIR = Path.home() / "data/tipmip/tas/esm-up2p0-gwl2p0-50y-dn2p0/gmstmon"
 DEFAULT_DN4_DIR = Path.home() / "data/tipmip/tas/esm-up2p0-gwl4p0-50y-dn2p0/gmstmon"
 DEFAULT_MLOTST_DN_DIR = Path.home() / "data/tipmip/mlotst/esm-up2p0-gwl4p0-50y-dn2p0"
-DEFAULT_MAPPING_DIR = REPO_ROOT / "mapping"
+DEFAULT_MAPPING_DIR = default_mappings_dir()
 
 
 def _report_written(written, skipped):
@@ -71,20 +72,20 @@ def main(up2p0_dir, picontrol_dir, mlotst_dir, mapping_dir, dn_dir=None, dn4_dir
     have_dn = dn_dir is not None and dn_dir.exists()
     have_dn4 = dn4_dir is not None and dn4_dir.exists()
 
-    print("=== [0/10] rebuilding mapping/ data product (ramp-up) ===")
+    print("=== [0/10] rebuilding mapping products (ramp-up) ===")
     written, skipped = write_products(up2p0_dir, picontrol_dir, mapping_dir)
     _report_written(written, skipped)
 
     dn_written = []
     if have_dn:
-        print("\n=== [0b/10] rebuilding mapping/ data product (ramp-down 2°C) ===")
+        print("\n=== [0b/10] rebuilding mapping products (ramp-down 2°C) ===")
         dn_written, dn_skipped = write_rampdown_products(dn_dir, picontrol_dir, mapping_dir)
         _report_written(dn_written, dn_skipped)
     else:
         print(f"\n=== [0b/10] ramp-down 2°C: skipped (--dn-dir not staged: {dn_dir}) ===")
 
     if have_dn4:
-        print("\n=== [0c/10] rebuilding mapping/ data product (ramp-down 4°C) ===")
+        print("\n=== [0c/10] rebuilding mapping products (ramp-down 4°C) ===")
         dn4_written, dn4_skipped = write_rampdown_products(dn4_dir, picontrol_dir, mapping_dir)
         _report_written(dn4_written, dn4_skipped)
         dn_written.extend(dn4_written)

@@ -28,6 +28,7 @@ from .ensemble import (
 )
 from .io import discover, load_gmsat_nc, read_attrs
 from .mapping import gwl_grid, gwl_grid_rampdown
+from .product import default_mappings_dir
 from .product import DEFAULT_EXPERIMENT, NotMappable
 
 
@@ -783,7 +784,7 @@ def main(argv=None):
         help="ramp-down gmstmon directory (required for ramp-down)",
     )
     parser.add_argument("--picontrol-dir", required=True, help="piControl gmstmon directory")
-    parser.add_argument("--outdir", default="./mapping")
+    parser.add_argument("--outdir", default=str(default_mappings_dir()))
     parser.add_argument("--window", type=int, default=31)
     parser.add_argument("--detrend-pi", action="store_true", help="ramp-up only")
     parser.add_argument("--mapping-version", default="v1")

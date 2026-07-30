@@ -17,7 +17,6 @@ from tipmip_gwl.ensemble import (
 PAPER_DIR = Path(__file__).resolve().parents[1] / "paper"
 sys.path.insert(0, str(PAPER_DIR))
 from helper_mlotst_remap import bundled_models  # noqa: E402
-
 from test_product import _write_monthly_tas
 
 
@@ -41,7 +40,7 @@ def test_required_gmstmon_experiments():
 def test_require_discovered_raises_on_missing():
     with pytest.raises(MissingEnsembleDataError, match="Missing ramp-up"):
         require_discovered(
-            ("GFDL-ESM2M", "CESM2"),
+            ("GFDL-ESM2M", "TrialModel"),
             {"GFDL-ESM2M": Path("a.nc")},
             label="ramp-up",
         )
@@ -63,12 +62,14 @@ def test_write_products_subset_ignores_extra_staged_models(tmp_path):
     pi_dir.mkdir()
 
     for model in ("GFDL-ESM2M", "TrialModel"):
-        _write_monthly_tas(_gmstmon_path(ru_dir, model, "esm-up2p0"), start_year=2000, n_years=30)
-        _write_monthly_tas(_gmstmon_path(pi_dir, model, "esm-piControl"), start_year=1851, n_years=250)
+        _write_monthly_tas(
+            _gmstmon_path(ru_dir, model, "esm-up2p0"), start_year=2000, n_years=30
+        )
+        _write_monthly_tas(
+            _gmstmon_path(pi_dir, model, "esm-piControl"), start_year=1851, n_years=250
+        )
 
-    written, skipped = write_products(
-        ru_dir, pi_dir, out_dir, models=("GFDL-ESM2M",)
-    )
+    written, skipped = write_products(ru_dir, pi_dir, out_dir, models=("GFDL-ESM2M",))
     assert skipped == []
     assert len(written) == 1
     assert written[0][0] == "GFDL-ESM2M"
@@ -80,8 +81,14 @@ def test_write_products_full_ensemble_raises_if_any_missing(tmp_path):
     pi_dir = tmp_path / "pi"
     ru_dir.mkdir()
     pi_dir.mkdir()
-    _write_monthly_tas(_gmstmon_path(ru_dir, "GFDL-ESM2M", "esm-up2p0"), start_year=2000, n_years=30)
-    _write_monthly_tas(_gmstmon_path(pi_dir, "GFDL-ESM2M", "esm-piControl"), start_year=1851, n_years=250)
+    _write_monthly_tas(
+        _gmstmon_path(ru_dir, "GFDL-ESM2M", "esm-up2p0"), start_year=2000, n_years=30
+    )
+    _write_monthly_tas(
+        _gmstmon_path(pi_dir, "GFDL-ESM2M", "esm-piControl"),
+        start_year=1851,
+        n_years=250,
+    )
 
     with pytest.raises(MissingEnsembleDataError, match="Missing ramp-up"):
         write_products(ru_dir, pi_dir, tmp_path / "mapping")

@@ -29,32 +29,31 @@ Maintainer builds: `from tipmip_gwl.build import write_products, write_rampdown_
 
 | Module | Role |
 |--------|------|
-| `ensemble.py` | Included Tier-1 model list (`INCLUDED_MODELS`); strict build/sync gate |
+| `ensemble.py` | Included Tier-1 model list (`INCLUDED_MODELS`); strict build gate |
 | `mapping.py` | Anomaly → 31-yr smooth + PAVA → invert |
 | `baseline.py` | piControl reference, branch year, provenance |
 | `io.py` | Read gmstmon; calendar-aware annual mean |
 | `product.py` | Load bundled mappings, resample/relabel |
 | `build.py` | Build `gwlmap_*.nc` (ramp-up + ramp-down) |
 
-## Bundled data
+## Mapping data
 
 - Mapping products: sibling **`tipmip-gwl-mappings/`** (24 × `gwlmap_*_v1.nc`;
   not shipped inside this package while TIPMIP is embargoed)
-- After local rebuild: `python scripts/sync_bundled_mappings.py` → copies to
-  `tipmip-gwl-mappings/`
-- Override path: `TIPMIP_GWL_MAPPINGS`
+- Builds write directly to that directory by default (`tipmip-gwl-build`, `build_all.py`)
+- Override path: `TIPMIP_GWL_MAPPINGS` or `--outdir` / `--mapping-dir`
 
 ## Included ensemble
 
 Canonical Tier-1 model ids: `src/tipmip_gwl/ensemble.py` (`INCLUDED_MODELS`).
-Mapping builds, bundle sync, and paper figures use this list exclusively; missing
+Mapping builds and paper figures use this list exclusively; missing
 data for any listed model raises `MissingEnsembleDataError`. Trial models in
 staging directories are ignored.
 
 ## Staged data (not in repo)
 
-See [docs/staged_data.md](docs/staged_data.md). Mapping rebuild output: `mapping/`
-(gitignored except when syncing to bundle).
+See [docs/staged_data.md](docs/staged_data.md). Mapping output: `tipmip-gwl-mappings/`
+(sibling clone).
 
 Site-specific HPC/rsync scripts are **not** in this public repo. Maintainer
 operational workflow (Levante build, laptop download, full rebuild): sibling clone
@@ -67,7 +66,7 @@ Set `TIPMIP_GWL_MAINTAINER` to that clone path when working with those scripts.
 pip install -e ".[paper,test]"
 pytest
 python scripts/build_gmstmon.py --exp esm-up2p0 --outdir ...
-tipmip-gwl-build --leg ramp-up --up2p0-dir ... --picontrol-dir ... --outdir mapping/
+tipmip-gwl-build --leg ramp-up --up2p0-dir ... --picontrol-dir ...
 python paper/build_all.py
 ```
 

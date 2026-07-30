@@ -9,10 +9,10 @@ For **maintainers** regenerating `gwlmap_*.nc` from staged gmstmon. End users:
 from tipmip_gwl import INCLUDED_MODELS
 ```
 
-(`src/tipmip_gwl/ensemble.py` — also drives paper figures and bundle sync.)
+(`src/tipmip_gwl/ensemble.py` — also drives paper figures and builds.)
 
-`tipmip-gwl-build`, `sync_bundled_mappings.py`, and paper scripts **only process
-these models**. Extra gmstmon in staging (e.g. CESM2 trials) is ignored. Missing
+`tipmip-gwl-build` and paper scripts **only process included models**. Extra
+gmstmon in staging for models outside ``INCLUDED_MODELS`` is ignored. Missing
 data for any included model raises `MissingEnsembleDataError`.
 
 Staged layout: [staged_data.md](staged_data.md).
@@ -49,18 +49,19 @@ the mapping baseline — annual means are computed on read with days-in-month we
 | Backend | `auto` (CDO if installed) or `xarray` |
 | UKESM attrs | Patch branch year: `scripts/fix_ukesm_branch_attrs.py --apply` |
 
-Other scripts: `sync_bundled_mappings.py`, `fix_ukesm_branch_attrs.py` — see
-[scripts/README.md](../scripts/README.md).
+Other helper: `scripts/fix_ukesm_branch_attrs.py` — see [scripts/README.md](../scripts/README.md).
 
 ## Build mappings
+
+Default output: sibling ``../tipmip-gwl-mappings/`` (override with ``--outdir`` or
+``TIPMIP_GWL_MAPPINGS``).
 
 ```bash
 pip install -e ".[paper]"
 
 tipmip-gwl-build \
   --up2p0-dir ~/data/tipmip/tas/esm-up2p0/gmstmon \
-  --picontrol-dir ~/data/tipmip/tas/esm-piControl/gmstmon \
-  --outdir mapping/
+  --picontrol-dir ~/data/tipmip/tas/esm-piControl/gmstmon
 ```
 
 Ramp-down (repeat for 2 °C and 4 °C legs):
@@ -68,31 +69,20 @@ Ramp-down (repeat for 2 °C and 4 °C legs):
 ```bash
 tipmip-gwl-build --leg ramp-down \
   --dn-dir ~/data/tipmip/tas/esm-up2p0-gwl2p0-50y-dn2p0/gmstmon \
-  --picontrol-dir ~/data/tipmip/tas/esm-piControl/gmstmon \
-  --outdir mapping/
+  --picontrol-dir ~/data/tipmip/tas/esm-piControl/gmstmon
 ```
 
 Optional sanity table: `python paper/helper_diagnostics.py --up2p0-dir ... --picontrol-dir ...`
-
-## Sync bundled mappings (release)
-
-After rebuilding `mapping/` for **all** included models and legs:
-
-```bash
-python scripts/sync_bundled_mappings.py
-```
-
-Copies 24 v1 files (8 ramp-up + 16 ramp-down) into the sibling
-``tipmip-gwl-mappings/`` repository (or ``--dst``). Fails if any included model
-or leg is missing.
 
 ## Python API
 
 ```python
 from tipmip_gwl.build import write_products, write_rampdown_products
+from tipmip_gwl.product import default_mappings_dir
 
-write_products(up2p0_dir, picontrol_dir, "mapping/")
-write_rampdown_products(dn_dir, picontrol_dir, "mapping/")
+out = default_mappings_dir()
+write_products(up2p0_dir, picontrol_dir, out)
+write_rampdown_products(dn_dir, picontrol_dir, out)
 ```
 
 Pass `models=(...)` to override the ensemble for isolated tests only.
