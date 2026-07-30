@@ -88,9 +88,9 @@ conda activate toad312
 pip install -e ".[paper,test]"
 pytest
 python paper/build_all.py \
-  --up2p0-dir ~/Desktop/tipmip/tas/esm-up2p0/gmstmon \
-  --picontrol-dir ~/Desktop/tipmip/tas/esm-piControl/gmstmon \
-  --mlotst-dir ~/Desktop/tipmip/mlotst/esm-up2p0 \
-  --dn-dir ~/Desktop/tipmip/tas/esm-up2p0-gwl2p0-50y-dn2p0/gmstmon \
-  --dn4-dir ~/Desktop/tipmip/tas/esm-up2p0-gwl4p0-50y-dn2p0/gmstmon
+  --up2p0-dir ~/data/tipmip/tas/esm-up2p0/gmstmon \
+  --picontrol-dir ~/data/tipmip/tas/esm-piControl/gmstmon \
+  --mlotst-dir ~/data/tipmip/mlotst/esm-up2p0 \
+  --dn-dir ~/data/tipmip/tas/esm-up2p0-gwl2p0-50y-dn2p0/gmstmon \
+  --dn4-dir ~/data/tipmip/tas/esm-up2p0-gwl4p0-50y-dn2p0/gmstmon
 ```

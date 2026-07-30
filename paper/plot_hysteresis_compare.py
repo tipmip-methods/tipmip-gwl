@@ -10,8 +10,8 @@ Outputs ``paper/figures/hysteresis_compare_B.png``,
 Usage::
 
     python paper/plot_hysteresis_compare.py \\
-        --mlotst-up-dir ~/Desktop/tipmip/mlotst/esm-up2p0 \\
-        --mlotst-dn-dir ~/Desktop/tipmip/mlotst/esm-up2p0-gwl2p0-50y-dn2p0 \\
+        --mlotst-up-dir ~/data/tipmip/mlotst/esm-up2p0 \\
+        --mlotst-dn-dir ~/data/tipmip/mlotst/esm-up2p0-gwl2p0-50y-dn2p0 \\
         --mapping-dir mapping
 """
 

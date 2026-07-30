@@ -9,8 +9,8 @@ Usage::
 
     python paper/table_mono_max.py \\
         --mapping-dir mapping \\
-        --up2p0-dir ~/Desktop/tipmip/tas/esm-up2p0/gmstmon \\
-        --picontrol-dir ~/Desktop/tipmip/tas/esm-piControl/gmstmon
+        --up2p0-dir ~/data/tipmip/tas/esm-up2p0/gmstmon \\
+        --picontrol-dir ~/data/tipmip/tas/esm-piControl/gmstmon
 """
 
 from __future__ import annotations

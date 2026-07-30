@@ -14,7 +14,7 @@ Usage::
 
     python scripts/patch_ukesm_branch_attrs.py --dry-run
     python scripts/patch_ukesm_branch_attrs.py --apply
-    python scripts/patch_ukesm_branch_attrs.py --apply --tipmip-root ~/Desktop/tipmip
+    python scripts/patch_ukesm_branch_attrs.py --apply --tipmip-root ~/data/tipmip
     python scripts/patch_ukesm_branch_attrs.py --apply --include-mlotst
 """
 
@@ -26,7 +26,7 @@ from pathlib import Path
 
 import netCDF4 as nc
 
-DEFAULT_TIPMIP_ROOT = Path.home() / "Desktop/tipmip"
+DEFAULT_TIPMIP_ROOT = Path.home() / "data/tipmip"
 MODEL = "UKESM1-2-LL"
 INTERNAL_SOURCE_ID = "eUKESM1-1-ice-N96ORCA1"
 PARENT_SOURCE_ID = INTERNAL_SOURCE_ID

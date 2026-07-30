@@ -78,11 +78,11 @@ mapping/                 local rebuild output (optional)
 
 | Guide | Audience |
 |-------|----------|
+| [docs/README.md](docs/README.md) | **Doc index** — user vs maintainer guides |
 | [docs/using_mappings.md](docs/using_mappings.md) | **Users** — resample, relabel, ensemble stacks |
 | [docs/building_mappings.md](docs/building_mappings.md) | **Maintainers** — build mappings, sync bundled data |
-| [docs/gmstmon_pipeline.md](docs/gmstmon_pipeline.md) | **Maintainers** — tas → gmstmon via ``scripts/build_gmstmon.py`` |
-| [docs/paper_figures.md](docs/paper_figures.md) | **Paper reproduction** — `paper/build_all.py` and figure scripts |
-| [docs/publication_cleanup.md](docs/publication_cleanup.md) | **Maintainers** — GMD submission checklist |
+| [docs/gmstmon_pipeline.md](docs/gmstmon_pipeline.md) | **Maintainers** — tas → gmstmon |
+| [docs/paper_figures.md](docs/paper_figures.md) | **Paper reproduction** — `paper/build_all.py` |
 | [AGENTS.md](AGENTS.md) | **Coding agents** — architecture, gotchas, commands |
 
 ## Reproducing paper figures

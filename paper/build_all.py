@@ -9,10 +9,10 @@ orchestrator, no logic lives here.
 Usage::
 
     python paper/build_all.py \\
-        --up2p0-dir ~/Desktop/tipmip/tas/esm-up2p0/gmstmon \\
-        --picontrol-dir ~/Desktop/tipmip/tas/esm-piControl/gmstmon \\
-        --mlotst-dir ~/Desktop/tipmip/mlotst/esm-up2p0 \\
-        --dn-dir ~/Desktop/tipmip/tas/esm-up2p0-gwl2p0-50y-dn2p0/gmstmon
+        --up2p0-dir ~/data/tipmip/tas/esm-up2p0/gmstmon \\
+        --picontrol-dir ~/data/tipmip/tas/esm-piControl/gmstmon \\
+        --mlotst-dir ~/data/tipmip/mlotst/esm-up2p0 \\
+        --dn-dir ~/data/tipmip/tas/esm-up2p0-gwl2p0-50y-dn2p0/gmstmon
 """
 
 from __future__ import annotations
@@ -40,12 +40,12 @@ import window_sensitivity  # noqa: E402
 from baseline_sensitivity import main as baseline_sensitivity_main  # noqa: E402
 from mean_tas_piControl import main as mean_tas_piControl_main  # noqa: E402
 
-DEFAULT_UP2P0_DIR = Path.home() / "Desktop/tipmip/tas/esm-up2p0/gmstmon"
-DEFAULT_PICONTROL_DIR = Path.home() / "Desktop/tipmip/tas/esm-piControl/gmstmon"
-DEFAULT_MLOTST_DIR = Path.home() / "Desktop/tipmip/mlotst/esm-up2p0"
-DEFAULT_DN_DIR = Path.home() / "Desktop/tipmip/tas/esm-up2p0-gwl2p0-50y-dn2p0/gmstmon"
-DEFAULT_DN4_DIR = Path.home() / "Desktop/tipmip/tas/esm-up2p0-gwl4p0-50y-dn2p0/gmstmon"
-DEFAULT_MLOTST_DN_DIR = Path.home() / "Desktop/tipmip/mlotst/esm-up2p0-gwl4p0-50y-dn2p0"
+DEFAULT_UP2P0_DIR = Path.home() / "data/tipmip/tas/esm-up2p0/gmstmon"
+DEFAULT_PICONTROL_DIR = Path.home() / "data/tipmip/tas/esm-piControl/gmstmon"
+DEFAULT_MLOTST_DIR = Path.home() / "data/tipmip/mlotst/esm-up2p0"
+DEFAULT_DN_DIR = Path.home() / "data/tipmip/tas/esm-up2p0-gwl2p0-50y-dn2p0/gmstmon"
+DEFAULT_DN4_DIR = Path.home() / "data/tipmip/tas/esm-up2p0-gwl4p0-50y-dn2p0/gmstmon"
+DEFAULT_MLOTST_DN_DIR = Path.home() / "data/tipmip/mlotst/esm-up2p0-gwl4p0-50y-dn2p0"
 DEFAULT_MAPPING_DIR = REPO_ROOT / "mapping"
 
 

@@ -23,7 +23,7 @@ hold stays deferred (forward relabel only).
 
 ## 1. Data staging
 
-Destination root: `~/Desktop/tipmip/`
+Destination root: `~/data/tipmip/`
 
 - [x] **0. Sanity check** — `tas/esm-up2p0-gwl2p0-50y-dn2p0/` all 8 Tier‑1 models
 - [x] **1. `tas` / `esm-up2p0-gwl4p0-50y-dn2p0`** — all 8 models
@@ -66,12 +66,12 @@ on_gwl = resample_to_gwl(mp_dn, diagnostic)
 ```bash
 conda activate toad312
 tipmip-gwl-build-rampdown \
-  --dn-dir ~/Desktop/tipmip/tas/esm-up2p0-gwl2p0-50y-dn2p0/gmstmon \
-  --picontrol-dir ~/Desktop/tipmip/tas/esm-piControl/gmstmon \
+  --dn-dir ~/data/tipmip/tas/esm-up2p0-gwl2p0-50y-dn2p0/gmstmon \
+  --picontrol-dir ~/data/tipmip/tas/esm-piControl/gmstmon \
   --outdir mapping/
 tipmip-gwl-build-rampdown \
-  --dn-dir ~/Desktop/tipmip/tas/esm-up2p0-gwl4p0-50y-dn2p0/gmstmon \
-  --picontrol-dir ~/Desktop/tipmip/tas/esm-piControl/gmstmon \
+  --dn-dir ~/data/tipmip/tas/esm-up2p0-gwl4p0-50y-dn2p0/gmstmon \
+  --picontrol-dir ~/data/tipmip/tas/esm-piControl/gmstmon \
   --outdir mapping/
 ```
 
@@ -89,8 +89,8 @@ Regenerate:
 ```bash
 python paper/plot_mapping_axis_up_down.py --mapping-dir mapping
 python paper/plot_hysteresis_mlotst.py \
-  --mlotst-up-dir ~/Desktop/tipmip/mlotst/esm-up2p0 \
-  --mlotst-dn-dir ~/Desktop/tipmip/mlotst/esm-up2p0-gwl4p0-50y-dn2p0 \
+  --mlotst-up-dir ~/data/tipmip/mlotst/esm-up2p0 \
+  --mlotst-dn-dir ~/data/tipmip/mlotst/esm-up2p0-gwl4p0-50y-dn2p0 \
   --mapping-dir mapping
 ```
 

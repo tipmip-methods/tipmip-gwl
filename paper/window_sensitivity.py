@@ -11,8 +11,8 @@ rate) to the ~0.09 K baseline-definition sensitivity (baseline_sensitivity.py).
 Usage::
 
     python paper/window_sensitivity.py \\
-        --up2p0-dir ~/Desktop/tipmip/tas/esm-up2p0/gmstmon \\
-        --picontrol-dir ~/Desktop/tipmip/tas/esm-piControl/gmstmon
+        --up2p0-dir ~/data/tipmip/tas/esm-up2p0/gmstmon \\
+        --picontrol-dir ~/data/tipmip/tas/esm-piControl/gmstmon
 """
 
 from __future__ import annotations

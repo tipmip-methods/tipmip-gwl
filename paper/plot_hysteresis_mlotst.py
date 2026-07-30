@@ -7,8 +7,8 @@ MIROC-ES2L only, with a bottom bar panel for down minus up at each grid tick.
 Usage::
 
     python paper/plot_hysteresis_mlotst.py \\
-        --mlotst-up-dir ~/Desktop/tipmip/mlotst/esm-up2p0 \\
-        --mlotst-dn-dir ~/Desktop/tipmip/mlotst/esm-up2p0-gwl4p0-50y-dn2p0 \\
+        --mlotst-up-dir ~/data/tipmip/mlotst/esm-up2p0 \\
+        --mlotst-dn-dir ~/data/tipmip/mlotst/esm-up2p0-gwl4p0-50y-dn2p0 \\
         --mapping-dir mapping
 """
 

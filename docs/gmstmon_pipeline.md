@@ -1,159 +1,57 @@
-# GMSAT pipeline: from CMIP `tas` to `gmstmon`
+# GMSAT preprocessing (tas → gmstmon)
 
-How we prepare **global-mean surface air temperature (GMSAT)** for TIPMIP analysis.
-This is the archive preprocessing stage of **Step 1 (anomaly computation)** in
-the mapping pipeline.
+Maintainer step before [building_mappings.md](building_mappings.md). End users can skip this.
 
-**Tool:** `python scripts/build_gmstmon.py` + bundled path list `scripts/data/tas_chunks.tsv`.
+**Tool:** `python scripts/build_gmstmon.py`  
+**Manifest:** `scripts/data/tas_chunks.tsv` (Levante chunk paths; edit when paths move)
 
-**Downstream:** after gmstmon is staged, build mappings with
-[building_mappings.md](building_mappings.md). End users who only resample their
-own diagnostics can skip this entirely — see [using_mappings.md](using_mappings.md).
+## Output layout
 
-HPC helpers: `scripts/` (see `scripts/README.md`).
-
----
-
-## What you need on disk
-
-One small file per model per experiment:
+Monthly area-weighted global-mean tas, one file per model:
 
 ```text
-<outdir>/tas_<table>_<model>_<exp>_<member>_<grid>_gmstmon.nc
+<outdir>/tas_*_<model>_<exp>_gmstmon.nc
 ```
 
-Monthly, area-weighted global mean. Example local layout:
+Example: `~/data/tipmip/tas/esm-up2p0/gmstmon/`
 
-```text
-~/Desktop/tipmip/tas/esm-up2p0/gmstmon/
-~/Desktop/tipmip/tas/esm-piControl/gmstmon/
-```
+Days-in-month-weighted **annual** GMSAT is applied on read by `load_gmsat_nc` — do not
+use `cdo yearmean` for the mapping baseline.
 
-The **annual** GMSAT (days-in-month weighted) is applied automatically on read by
-`tipmip_gwl.io.load_gmsat_nc` — not a separate preprocessing step.
-
----
-
-## Path manifest (`tas_chunks.tsv`)
-
-Chunk paths on Levante are listed in **`scripts/data/tas_chunks.tsv`** — one
-row per time chunk:
-
-```text
-model	experiment_id	path
-ACCESS-ESM1-5	esm-piControl	/work/cmip6/data/CMIP6/CMIP/CSIRO-ARCCSS/.../tas_....nc
-...
-```
-
-When Levante paths move, edit this file and re-run preprocess — no inventory scan.
-
----
-
-## Quick start
+## Commands
 
 ```bash
 conda activate toad312
 pip install -e ".[paper]"
+
+# All models, one experiment (Levante or local chunks via manifest)
+python scripts/build_gmstmon.py --exp esm-piControl --outdir /path/to/gmstmon
+
+# One model
+python scripts/build_gmstmon.py --exp esm-up2p0 --models GFDL-ESM2M --outdir ./gmstmon
+
+# Explicit chunk list (no manifest)
+python scripts/build_gmstmon.py --chunks chunk1.nc chunk2.nc --out path/to/out.nc
 ```
 
-### Batch (all models, one experiment)
+Other experiments (ramp-down, etc.): same command with the matching `--exp` /
+`experiment_id` from `tas_chunks.tsv`. NorESM ramp-down uses `esm-up2p0-swl2p0-50y-dn2p0`.
 
-On **Levante**:
+Pull merged gmstmon to your laptop:
 
 ```bash
-python scripts/build_gmstmon.py \
-  --exp esm-piControl \
-  --outdir /work/bm1448/analysis/harteg/merged/tas/esm-piControl/gmstmon
+export TIPMIP_EXP=esm-piControl
+bash scripts/pull_gmstmon_local.sh
 ```
 
-(`--manifest` defaults to the bundled `tas_chunks.tsv`.)
+HPC preprocess batch: `scripts/run_preprocess_levante.slurm`. More helpers: `scripts/README.md`.
 
-Or submit `scripts/run_preprocess_levante.slurm`.
+## Notes
 
-Copy to laptop (~1 MB per model):
+| Topic | Detail |
+|-------|--------|
+| Duplicate months | Dropped after chunk merge; avoid overlapping chunk ranges in the manifest |
+| Backend | `auto` (CDO if installed) or `xarray`; spatial mean at preprocess, annual mean on read |
+| mlotst | Not handled here |
 
-```bash
-rsync -avP user@levante.dkrz.de:.../gmstmon/ ~/Desktop/tipmip/tas/esm-piControl/gmstmon/
-```
-
-### One model
-
-```bash
-python scripts/build_gmstmon.py \
-  --exp esm-piControl \
-  --models ACCESS-ESM1-5 \
-  --outdir ./gmstmon
-```
-
-### One-off from explicit paths
-
-```bash
-python scripts/build_gmstmon.py \
-  --chunks /path/to/chunk1.nc /path/to/chunk2.nc \
-  --out ~/Desktop/tipmip/tas/esm-piControl/gmstmon/tas_Amon_ACCESS-ESM1-5_esm-piControl_r1i1p1f1_gn_gmstmon.nc
-```
-
-### Downstream
-
-See [building_mappings.md](building_mappings.md) for `tipmip-gwl-build` and syncing
-bundled mappings. Diagnostic figure: `python paper/mean_tas_piControl.py` (requires
-staged tas — [paper_figures.md](paper_figures.md)).
-
----
-
-## Two weighting steps
-
-| Step | Where | What |
-|------|-------|------|
-| Spatial mean | `python scripts/build_gmstmon.py` | Area-weighted global mean, **keep monthly** |
-| Temporal mean | `load_gmsat_nc` (on read) | Days-in-month weighted **annual** mean |
-| Overlap guard | `python scripts/build_gmstmon.py` | Drops duplicate calendar months after chunk merge |
-
-Do **not** use `cdo yearmean` for the baseline. When listing chunk paths in
-`tas_chunks.tsv`, avoid overlapping ranges (a superset file plus its partitions
-will duplicate months unless deduplicated).
-
----
-
-## Backend
-
-| `--backend` | Behaviour |
-|-------------|-----------|
-| `auto` (default) | CDO if installed (`mergetime` + `fldmean`), else xarray |
-| `cdo` | CDO merge + field mean (same backend as `auto` when CDO is available) |
-| `xarray` | Pure Python; cos(lat) if no `areacella` passed |
-
----
-
-## Other TIPMIP experiments
-
-The bundled `tas_chunks.tsv` also lists ramp-down, ZE-hold, and other legs. Use
-the same command with the matching `experiment_id`, for example:
-
-```bash
-python scripts/build_gmstmon.py \
-  --exp esm-up2p0-gwl2p0-50y-dn2p0 \
-  --outdir /work/.../merged/tas/esm-up2p0-gwl2p0-50y-dn2p0/gmstmon
-```
-
-NorESM2-LM uses `esm-up2p0-swl2p0-50y-dn2p0` instead (also in the manifest).
-
-Mixed-layer **mlotst** preprocessing is handled outside this package.
-
----
-
-## Updating paths
-
-1. Find the new absolute path on Levante.
-2. Edit `scripts/data/tas_chunks.tsv`.
-3. Re-run `python scripts/build_gmstmon.py` for that experiment.
-
-Verify:
-
-```bash
-python -c "
-from tipmip_gwl.io import load_gmsat_nc
-y, t = load_gmsat_nc('path/to/tas_..._gmstmon.nc')
-print(int(y.min()), int(y.max()), len(y), round(float(t.mean()), 3))
-"
-```
+After gmstmon is staged, run `tipmip-gwl-build` — see [building_mappings.md](building_mappings.md).

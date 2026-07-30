@@ -3,14 +3,14 @@
 #
 # Usage:
 #   export TIPMIP_EXP=esm-up2p0-gwl2p0-50y-dn2p0
-#   export LOCAL_DEST=~/Desktop/tipmip/tas
+#   export LOCAL_DEST=~/data/tipmip/tas
 #   bash scripts/pull_gmstmon_local.sh
 
 set -euo pipefail
 
 TIPMIP_EXP="${TIPMIP_EXP:?set TIPMIP_EXP}"
 DKRZ_USER="${DKRZ_USER:-b383937}"
-LOCAL_DEST="${LOCAL_DEST:-$HOME/Desktop/tipmip/tas}"
+LOCAL_DEST="${LOCAL_DEST:-$HOME/data/tipmip/tas}"
 
 LEVANTE_SRC="/work/bm1448/analysis/harteg/merged/tas/${TIPMIP_EXP}/gmstmon"
 DEST="${LOCAL_DEST}/${TIPMIP_EXP}/gmstmon"

@@ -66,12 +66,13 @@ Shared ramp-up pipeline step: `build.compute_rampup_leg()` (used by build +
 Default laptop layout:
 
 ```
-~/Desktop/tipmip/tas/esm-up2p0/gmstmon/
-~/Desktop/tipmip/tas/esm-piControl/gmstmon/
-~/Desktop/tipmip/tas/esm-up2p0-gwl2p0-50y-dn2p0/gmstmon/
-~/Desktop/tipmip/mlotst/esm-up2p0/          # native *_annualmax.nc
-~/Desktop/tipmip/mapping/                     # optional local rebuild
+~/data/tipmip/tas/esm-up2p0/gmstmon/
+~/data/tipmip/tas/esm-piControl/gmstmon/
+~/data/tipmip/tas/esm-up2p0-gwl2p0-50y-dn2p0/gmstmon/
+~/data/tipmip/mlotst/esm-up2p0/          # native *_annualmax.nc
 ```
+
+Mapping rebuild output lives in the repo: `mapping/` (not under staged data).
 
 Levante paths: `scripts/data/tas_chunks.tsv` + `scripts/build_gmstmon.py`.
 

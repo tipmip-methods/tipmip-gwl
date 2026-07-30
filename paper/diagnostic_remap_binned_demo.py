@@ -8,7 +8,7 @@ remapped values at those grid points. Uses global-mean, unsmoothed annual-max ml
 Usage::
 
     python paper/diagnostic_remap_binned_demo.py \\
-        --mlotst-dir ~/Desktop/tipmip/mlotst/esm-up2p0 \\
+        --mlotst-dir ~/data/tipmip/mlotst/esm-up2p0 \\
         --mapping-dir mapping
 """
 

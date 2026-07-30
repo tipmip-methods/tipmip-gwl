@@ -9,7 +9,7 @@ GWL via ``relabel_to_gwl`` (native forward map, not ``resample_to_gwl``).
 
 Usage::
 
-    python paper/diagnostic_remap_demo.py --mlotst-dir ~/Desktop/tipmip/mlotst/esm-up2p0 --mapping-dir mapping
+    python paper/diagnostic_remap_demo.py --mlotst-dir ~/data/tipmip/mlotst/esm-up2p0 --mapping-dir mapping
 """
 
 from __future__ import annotations

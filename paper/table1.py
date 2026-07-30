@@ -10,8 +10,8 @@ Monotonization diagnostics live in ``table_mono_max.py``.
 Usage::
 
     python paper/table1.py \\
-        --up2p0-dir ~/Desktop/tipmip/tas/esm-up2p0/gmstmon \\
-        --picontrol-dir ~/Desktop/tipmip/tas/esm-piControl/gmstmon
+        --up2p0-dir ~/data/tipmip/tas/esm-up2p0/gmstmon \\
+        --picontrol-dir ~/data/tipmip/tas/esm-piControl/gmstmon
 """
 
 from __future__ import annotations

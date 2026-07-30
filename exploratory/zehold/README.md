@@ -17,8 +17,8 @@ Requires `pip install -e .` from the repo root:
 ```bash
 conda activate toad312
 python exploratory/zehold/zehold.py \
-  --ze-dir ~/Desktop/tipmip/tas/esm-up2p0-gwl2p0/gmstmon \
-  --picontrol-dir ~/Desktop/tipmip/tas/esm-piControl/gmstmon \
+  --ze-dir ~/data/tipmip/tas/esm-up2p0-gwl2p0/gmstmon \
+  --picontrol-dir ~/data/tipmip/tas/esm-piControl/gmstmon \
   --outdir mapping/
 ```
 

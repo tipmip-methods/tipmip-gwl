@@ -9,8 +9,8 @@ window mean; this script keeps the full-vs-window comparison for robustness.
 Usage::
 
     python paper/baseline_sensitivity.py \\
-        --up2p0-dir ~/Desktop/tipmip/tas/esm-up2p0/gmstmon \\
-        --picontrol-dir ~/Desktop/tipmip/tas/esm-piControl/gmstmon
+        --up2p0-dir ~/data/tipmip/tas/esm-up2p0/gmstmon \\
+        --picontrol-dir ~/data/tipmip/tas/esm-piControl/gmstmon
 """
 
 from __future__ import annotations
