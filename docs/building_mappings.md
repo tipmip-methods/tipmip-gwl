@@ -82,8 +82,9 @@ After rebuilding `mapping/` for **all** included models and legs:
 python scripts/sync_bundled_mappings.py
 ```
 
-Copies 24 v1 files (8 ramp-up + 16 ramp-down) into `src/tipmip_gwl/data/mappings/`.
-Fails if any included model or leg is missing.
+Copies 24 v1 files (8 ramp-up + 16 ramp-down) into the sibling
+``tipmip-gwl-mappings/`` repository (or ``--dst``). Fails if any included model
+or leg is missing.
 
 ## Python API
 

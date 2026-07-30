@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Copy published mapping files into the package data directory.
+"""Copy published mapping files into tipmip-gwl-mappings.
 
 Syncs ramp-up and ramp-down legs for :data:`tipmip_gwl.ensemble.INCLUDED_MODELS`
 only. Trial mappings (e.g. CESM2) in ``mapping/`` are ignored. Raises if any
@@ -18,7 +18,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_SRC = REPO_ROOT / "mapping"
-DEFAULT_DST = REPO_ROOT / "src" / "tipmip_gwl" / "data" / "mappings"
+DEFAULT_DST = REPO_ROOT.parent / "tipmip-gwl-mappings"
 
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
@@ -142,7 +142,7 @@ def main(
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Sync ramp-up and ramp-down v1 gwlmap_*.nc files into package data."
+        description="Sync ramp-up and ramp-down v1 gwlmap_*.nc into tipmip-gwl-mappings."
     )
     parser.add_argument("--src", type=Path, default=DEFAULT_SRC)
     parser.add_argument("--dst", type=Path, default=DEFAULT_DST)

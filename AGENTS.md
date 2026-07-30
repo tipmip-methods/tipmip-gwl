@@ -38,8 +38,11 @@ Maintainer builds: `from tipmip_gwl.build import write_products, write_rampdown_
 
 ## Bundled data
 
-- `src/tipmip_gwl/data/mappings/gwlmap_*_v1.nc` — 24 files (8 ramp-up + 16 ramp-down)
-- After local rebuild: `python scripts/sync_bundled_mappings.py`
+- Mapping products: sibling **`tipmip-gwl-mappings/`** (24 × `gwlmap_*_v1.nc`;
+  not shipped inside this package while TIPMIP is embargoed)
+- After local rebuild: `python scripts/sync_bundled_mappings.py` → copies to
+  `tipmip-gwl-mappings/`
+- Override path: `TIPMIP_GWL_MAPPINGS`
 
 ## Included ensemble
 

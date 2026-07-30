@@ -53,6 +53,3 @@ tipmip-gwl-build-rampdown = "tipmip_gwl.build:main_rampdown"
 
 [tool.setuptools.packages.find]
 where = ["src"]
-
-[tool.setuptools.package-data]
-tipmip_gwl = ["data/mappings/*.nc"]

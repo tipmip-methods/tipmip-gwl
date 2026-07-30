@@ -1,8 +1,9 @@
 # Using mapping products
 
 Load a bundled mapping and apply it to your own **annual** diagnostic — scalar,
-regional, or spatially resolved. Only the time axis is re-indexed; other
-dimensions pass through unchanged. No separate NetCDF download.
+regional, or spatially resolved. Mapping NetCDFs live in sibling repo
+``tipmip-gwl-mappings`` (see README). Only the time axis is re-indexed; other
+dimensions pass through unchanged.
 
 ## Load a mapping
 

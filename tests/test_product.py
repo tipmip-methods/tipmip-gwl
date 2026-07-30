@@ -21,6 +21,8 @@ from tipmip_gwl.product import (
     resample_to_gwl,
 )
 
+from conftest import requires_mappings
+
 CALENDAR = "noleap"
 
 
@@ -146,12 +148,14 @@ def test_clean_model_maps_without_warnings(tmp_path, pi_control_file):
     assert out.attrs["baseline_method"] == "branch_window_31yr"
 
 
+@requires_mappings
 def test_bundled_mappings_dir_exists():
     root = bundled_mappings_dir()
     assert root.is_dir()
     assert any(root.glob("gwlmap_*.nc"))
 
 
+@requires_mappings
 def test_list_models_matches_rampup_v1_files():
     root = bundled_mappings_dir()
     n_files = len(list(root.glob("gwlmap_*_esm-up2p0_v1.nc")))
@@ -161,17 +165,20 @@ def test_list_models_matches_rampup_v1_files():
     assert "GFDL-ESM2M" in models
 
 
+@requires_mappings
 def test_bundled_mapping_path_resolves():
     path = bundled_mapping_path("GFDL-ESM2M")
     assert path.name == "gwlmap_GFDL-ESM2M_esm-up2p0_v1.nc"
     assert path.is_file()
 
 
+@requires_mappings
 def test_bundled_mapping_path_unknown_model():
-    with pytest.raises(FileNotFoundError, match="no bundled mapping"):
+    with pytest.raises(FileNotFoundError, match="no mapping"):
         bundled_mapping_path("Not-A-Model")
 
 
+@requires_mappings
 def test_load_mapping_returns_in_memory_dataset():
     ds = load_mapping("GFDL-ESM2M")
     assert isinstance(ds, xr.Dataset)
@@ -181,6 +188,7 @@ def test_load_mapping_returns_in_memory_dataset():
     assert str(ds.attrs.get("leg", "ramp-up")) == "ramp-up"
 
 
+@requires_mappings
 def test_load_mapping_custom_path(tmp_path):
     src = bundled_mapping_path("GFDL-ESM2M")
     custom = tmp_path / src.name
@@ -189,6 +197,7 @@ def test_load_mapping_custom_path(tmp_path):
     assert ds.attrs["source_id"] == load_mapping("GFDL-ESM2M").attrs["source_id"]
 
 
+@requires_mappings
 def test_load_mapping_ramp_down_leg(tmp_path):
     up = bundled_mapping_path("GFDL-ESM2M")
     dn_name = "gwlmap_GFDL-ESM2M_esm-up2p0-gwl2p0-50y-dn2p0_v1.nc"
@@ -198,23 +207,27 @@ def test_load_mapping_ramp_down_leg(tmp_path):
     assert ds.attrs.get("source_id") == load_mapping("GFDL-ESM2M").attrs["source_id"]
 
 
+@requires_mappings
 def test_load_mapping_bundled_ramp_down_leg():
     ds = load_mapping("GFDL-ESM2M", leg=LEG_RAMP_DOWN_2C)
     assert "year_of_gwl" in ds
     assert str(ds.attrs.get("leg", "")) == "ramp-down"
 
 
+@requires_mappings
 def test_load_mapping_bundled_ukesm_prefers_standard_dn2c():
     path = resolve_mapping_path("UKESM1-2-LL", leg=LEG_RAMP_DOWN_2C)
     assert path.name == "gwlmap_UKESM1-2-LL_esm-up2p0-gwl2p0-50y-dn2p0_v1.nc"
 
 
+@requires_mappings
 def test_list_models_bundled_ramp_down():
     models = list_models(leg=LEG_RAMP_DOWN_2C)
     assert len(models) >= 8
     assert "GFDL-ESM2M" in models
 
 
+@requires_mappings
 def test_load_mapping_noresm_swl_dn_leg(tmp_path):
     up = bundled_mapping_path("GFDL-ESM2M")
     dn_name = "gwlmap_NorESM2-LM_esm-up2p0-swl2p0-50y-dn2p0_v1.nc"

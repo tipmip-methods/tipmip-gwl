@@ -9,7 +9,9 @@ Downstream users call :func:`load_mapping`, then :func:`resample_to_gwl` or
 
 from __future__ import annotations
 
+import os
 import re
+import warnings
 from pathlib import Path
 
 import numpy as np
@@ -26,6 +28,10 @@ class NotMappable(Exception):
 
 DEFAULT_EXPERIMENT = "esm-up2p0"
 DEFAULT_MAPPING_VERSION = "v1"
+
+MAPPINGS_REPO_NAME = "tipmip-gwl-mappings"
+MAPPINGS_ENV_VAR = "TIPMIP_GWL_MAPPINGS"
+_WARNED_MISSING_MAPPINGS = False
 
 LEG_RAMP_UP = "ramp-up"
 LEG_RAMP_DOWN_2C = "ramp-down-2c"
@@ -201,9 +207,31 @@ def resolve_mapping_path(
     )
 
 
+def package_repo_root() -> Path:
+    """Root of the installed ``tipmip-gwl`` source tree."""
+    return Path(__file__).resolve().parents[2]
+
+
+def default_mappings_dir() -> Path:
+    """Sibling ``tipmip-gwl-mappings`` clone or ``TIPMIP_GWL_MAPPINGS`` override."""
+    if raw := os.environ.get(MAPPINGS_ENV_VAR):
+        return Path(raw).expanduser()
+    return package_repo_root().parent / MAPPINGS_REPO_NAME
+
+
 def bundled_mappings_dir() -> Path:
-    """Directory containing bundled ramp-up and ramp-down mapping files."""
-    return Path(__file__).resolve().parent / "data" / "mappings"
+    """Directory of published ``gwlmap_*.nc`` files (separate data repository)."""
+    global _WARNED_MISSING_MAPPINGS
+    root = default_mappings_dir()
+    if not root.is_dir() and not _WARNED_MISSING_MAPPINGS:
+        warnings.warn(
+            f"Mapping data directory not found: {root}. "
+            f"Obtain tipmip-gwl-mappings (TIPMIP embargo) or set {MAPPINGS_ENV_VAR}. "
+            "See README.md.",
+            stacklevel=2,
+        )
+        _WARNED_MISSING_MAPPINGS = True
+    return root
 
 
 def _parse_mapping_filename(path: Path) -> tuple[str, str, str] | None:
@@ -259,8 +287,9 @@ def bundled_mapping_path(
     if not path.is_file():
         available = ", ".join(list_models(version=version, experiment=experiment))
         raise FileNotFoundError(
-            f"no bundled mapping for {model!r} ({experiment}, {version}); "
-            f"available models: {available or '(none)'}"
+            f"no mapping for {model!r} ({experiment}, {version}) in "
+            f"{bundled_mappings_dir()}; "
+            f"available models: {available or '(none — obtain tipmip-gwl-mappings)'}"
         )
     return path
 

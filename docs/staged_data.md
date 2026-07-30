@@ -10,7 +10,7 @@ See [using_mappings.md](using_mappings.md).
 
 | Data | In repo? | Notes |
 |------|----------|-------|
-| GWL mapping products (`gwlmap_*_v1.nc`) | **Yes** | 24 files in `src/tipmip_gwl/data/mappings/` |
+| GWL mapping products (`gwlmap_*_v1.nc`) | **Separate repo** | `tipmip-gwl-mappings` sibling clone; TIPMIP embargo |
 | gmstmon, mlotst, sea-ice fields | **No** | Obtain via TIPMIP / institutional access |
 
 ## Directory layout
@@ -58,7 +58,7 @@ python paper/build_all.py \
 Rebuilds `mapping/` when gmstmon is staged, then runs each `paper/*.py` script.
 Outputs: `paper/figures/`, `paper/tables/`. Ramp-down steps are skipped if dn gmstmon
 is missing. After rebuilding mappings, run `python scripts/sync_bundled_mappings.py`
-to update the bundled snapshot.
+to update the sibling `tipmip-gwl-mappings/` snapshot.
 
 Mapping build detail: [building_mappings.md](building_mappings.md).  
 Lighter tutorial: [examples/resample_diagnostic.ipynb](../examples/resample_diagnostic.ipynb).
