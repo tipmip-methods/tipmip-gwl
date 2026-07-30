@@ -52,7 +52,6 @@ tipmip-gwl-build --leg ramp-down \
 | `run_diagnostics.py` | Local | Sanity table for staged ramp-up gmstmon |
 | `run_preprocess_levante.slurm` | Levante | Batch gmstmon build for piControl + ramp-up |
 | `pull_gmstmon_local.sh` | Laptop | Rsync `gmstmon/` from Levante to `~/data/tipmip/tas/` |
-| `prepare_rampdown_merge.py` | Local | Build merge lists for ramp-down experiments |
 | `sync_bundled_mappings.py` | Local | Copy rebuilt `mapping/` into package data |
 
 Path manifest: **`scripts/data/tas_chunks.tsv`** — edit when Levante paths move.

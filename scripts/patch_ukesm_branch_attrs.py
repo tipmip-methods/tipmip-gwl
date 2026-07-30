@@ -102,7 +102,7 @@ def discover_files(root: Path, *, include_mlotst: bool) -> list[Path]:
         name = path.name
         if name.endswith(".bak") or "_original.nc" in name:
             continue
-        if "_toad" in name or name.endswith("_anomaly.nc"):
+        if name.endswith("_anomaly.nc"):
             continue
         if not include_mlotst and not name.startswith("tas_"):
             continue

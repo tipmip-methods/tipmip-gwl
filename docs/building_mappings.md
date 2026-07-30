@@ -16,7 +16,6 @@ with [gmstmon_pipeline.md](gmstmon_pipeline.md).
 ## Quick start
 
 ```bash
-conda activate toad312
 pip install -e ".[paper]"
 
 python scripts/build_gmstmon.py --exp esm-piControl --outdir ~/data/tipmip/tas/esm-piControl/gmstmon
@@ -44,7 +43,7 @@ python scripts/sync_bundled_mappings.py
 ```
 
 Copies 24 publishable v1 files (8 ramp-up + 16 ramp-down) into
-`src/tipmip_gwl/data/mappings/`. Zero-emission-hold products are excluded.
+`src/tipmip_gwl/data/mappings/`.
 
 ## Python API
 
@@ -54,5 +53,3 @@ from tipmip_gwl.build import write_products, write_rampdown_products
 write_products(up2p0_dir, picontrol_dir, "mapping/")
 write_rampdown_products(dn_dir, picontrol_dir, "mapping/")
 ```
-
-Zero-emission-hold mapping is exploratory only: `exploratory/zehold/`.

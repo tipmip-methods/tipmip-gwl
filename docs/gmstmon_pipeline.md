@@ -21,7 +21,6 @@ use `cdo yearmean` for the mapping baseline.
 ## Commands
 
 ```bash
-conda activate toad312
 pip install -e ".[paper]"
 
 # All models, one experiment (Levante or local chunks via manifest)

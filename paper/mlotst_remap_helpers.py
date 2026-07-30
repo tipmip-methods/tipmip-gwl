@@ -105,15 +105,13 @@ def calendar_years(ds: xr.Dataset) -> np.ndarray:
 
 
 def discover_native_mlotst(mlotst_dir: Path) -> dict[str, Path]:
-    """Map model -> native-time mlotst file, skipping pre-remapped GWL-axis products.
+    """Map model -> native calendar-time ``*_annualmax.nc`` mlotst file.
 
-    The staging dir may also hold ``*_annualmax_toad.nc`` files (already on a
-    GWL axis from an external pipeline) and transient ``.toad-save-*.nc`` scratch
-    files; paper demos need the original ``*_annualmax.nc`` calendar-time series.
+    Skips pre-remapped GWL-axis products and hidden scratch files in the staging dir.
     """
     out: dict[str, Path] = {}
     for p in sorted(mlotst_dir.glob("mlotst_*.nc")):
-        if p.name.startswith(".") or "_toad" in p.name:
+        if p.name.startswith(".") or not p.name.endswith("_annualmax.nc"):
             continue
         parts = p.name.split("_")
         if len(parts) < 5:

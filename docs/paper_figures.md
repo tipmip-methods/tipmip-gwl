@@ -6,7 +6,6 @@ own diagnostics only need [using_mappings.md](using_mappings.md).
 ## One command
 
 ```bash
-conda activate toad312
 pip install -e ".[paper]"
 
 python paper/build_all.py \

@@ -62,16 +62,31 @@ Ramp-up and both ramp-down legs for each model share one piControl baseline. Thi
 
 Per-model drift, reference temperatures, and monotonicity diagnostics: `paper/tables/table1.csv`, `paper/tables/table_mono_max.csv` (also Tables A1–A2 in the GMD paper).
 
+## Install
+
+Runtime dependencies are listed in [pyproject.toml](pyproject.toml) and [requirements.txt](requirements.txt).
+For paper reproduction and tests:
+
+```bash
+pip install -e ".[paper,test]"
+# or: pip install -r requirements-dev.txt && pip install -e .
+```
+
 ## Repository layout
 
+This repo serves three purposes:
+
+1. **User library** — bundled mappings + `resample_to_gwl` / `relabel_to_gwl`
+2. **Paper reproduction** — `paper/build_all.py` and committed figures/tables
+3. **Mapping pipeline** — rebuild `gwlmap_*.nc` from staged gmstmon (`scripts/`, `tipmip-gwl-build`)
+
 ```
-src/tipmip_gwl/          user library (load_mapping, resample/relabel; bundled data)
-scripts/                 maintainer staging (gmstmon build, diagnostics, sync)
+src/tipmip_gwl/          user library (bundled mappings)
+scripts/                 gmstmon build, diagnostics, sync (maintainers)
 docs/                    user and maintainer guides
 examples/                tutorial notebook
-paper/                   reproduce figures/tables (pip install -e ".[paper]")
-exploratory/             deferred work (e.g. ZE-hold; not installed)
-mapping/                 local rebuild output (optional)
+paper/                   reproduce figures/tables
+mapping/                 local rebuild output (gitignored)
 ```
 
 ## Documentation

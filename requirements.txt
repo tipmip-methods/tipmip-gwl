@@ -1,0 +1,9 @@
+# Core runtime dependencies (mirrors pyproject.toml [project.dependencies]).
+# Install with: pip install -r requirements.txt
+# Or from source: pip install -e .
+
+numpy
+scipy
+xarray
+cftime
+netCDF4
