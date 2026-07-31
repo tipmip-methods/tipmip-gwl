@@ -50,7 +50,7 @@ def main(mlotst_dir, mapping_dir, out_path):
     mlotst_files = discover_native_mlotst(mlotst_dir)
     mapping_files = mapping_index_by_rampup_model(mapping_dir)
     models = bundled_models(mlotst_files, mapping_files)
-    skipped = sorted(set(mlotst_files) | set(mapping_files) - set(models))
+    skipped = sorted((set(mlotst_files) | set(mapping_files)) - set(models))
     if skipped:
         print(f"note: skipping models outside paper bundle or missing data: {skipped}")
 

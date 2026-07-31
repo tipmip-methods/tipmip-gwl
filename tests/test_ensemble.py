@@ -25,7 +25,7 @@ def _gmstmon_path(directory: Path, model: str, exp: str) -> Path:
 
 
 def test_included_models_is_sorted_tier1():
-    assert len(INCLUDED_MODELS) == 8
+    assert len(INCLUDED_MODELS) == 9
     assert INCLUDED_MODELS == tuple(sorted(INCLUDED_MODELS))
 
 

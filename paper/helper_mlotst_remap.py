@@ -39,8 +39,17 @@ def bundled_models(*model_dicts: dict[str, object]) -> list[str]:
 
 
 def lat_name(ds: xr.Dataset) -> str:
-    for name in ("latitude", "lat"):
-        if name in ds.coords:
+    """Name of the latitude field to area-weight ``mlotst`` by.
+
+    CESM2's staged file only attaches ``TLONG``/``ULAT`` (U-grid) as
+    coordinates; the ocean tracer grid latitude matching ``mlotst`` and
+    ``TLONG`` is ``TLAT``, present as a plain data variable rather than a
+    coordinate. Checking ``ds.variables`` (not just ``ds.coords``) picks it up
+    without disturbing models that do have a proper ``latitude``/``lat``
+    coordinate.
+    """
+    for name in ("latitude", "lat", "TLAT"):
+        if name in ds.variables:
             return name
     raise KeyError(f"no latitude coordinate found among {list(ds.coords)}")
 

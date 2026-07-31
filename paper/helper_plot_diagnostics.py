@@ -118,7 +118,7 @@ def plot_diagnostics(diags, outdir, *, model_colors=None, rampup=True, picontrol
         full_color = plt.cm.tab10.colors[0]
         window_color = plt.cm.tab10.colors[1]
 
-        ncol = 4
+        ncol = 3
         nrow = int(np.ceil(len(pmodels) / ncol))
 
         y_mins = [np.nanmin(d.pi_gmsat) for d in pmodels]
@@ -128,7 +128,7 @@ def plot_diagnostics(diags, outdir, *, model_colors=None, rampup=True, picontrol
         except Exception:
             y_min, y_max = None, None
 
-        figB, axes = plt.subplots(nrow, ncol, figsize=(12, 2.35 * nrow), sharey=True)
+        figB, axes = plt.subplots(nrow, ncol, figsize=(9, 2.6 * nrow), sharey=True)
 
         for ax_idx, (ax, d) in enumerate(zip(axes.flat, pmodels)):
             ax.plot(d.pi_years, d.pi_gmsat, color="k", lw=0.8)

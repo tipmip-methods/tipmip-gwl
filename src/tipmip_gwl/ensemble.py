@@ -6,6 +6,7 @@ from pathlib import Path
 
 INCLUDED_MODELS: tuple[str, ...] = (
     "ACCESS-ESM1-5",
+    "CESM2",
     "EC-Earth3-ESM-1",
     "GFDL-ESM2M",
     "GISS-E2-1-G-CC2",

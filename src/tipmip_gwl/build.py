@@ -512,12 +512,25 @@ def build_rampdown_mapping_dataset(
     t_grid=None,
     mapping_version: str = "v1",
     mapping_dir=None,
+    default_experiment_id: str = "esm-up2p0-gwl2p0-50y-dn2p0",
 ) -> xr.Dataset:
-    """Compute the ramp-down mapping for one model and return it as a Dataset."""
+    """Compute the ramp-down mapping for one model and return it as a Dataset.
+
+    ``default_experiment_id`` is only used as a fallback filename/attribute
+    label when ``dn_path`` itself carries no ``experiment_id`` (e.g. CESM2);
+    callers should set it from the source directory (2 °C vs 4 °C hold) so
+    the fallback matches the leg actually being built rather than always
+    defaulting to the 2 °C branch.
+    """
     t_grid = DEFAULT_T_GRID if t_grid is None else np.asarray(t_grid, float)
 
     dn_attrs = read_attrs(dn_path)
     warns = _parent_chain_warnings(dn_attrs)
+    if not str(dn_attrs.get("experiment_id") or "").strip():
+        warns.append(
+            f"missing experiment_id on ramp-down file; using {default_experiment_id!r} "
+            "inferred from the source directory (informational only)"
+        )
 
     if pi_path is None:
         raise NotMappable("no piControl tas available")
@@ -557,7 +570,7 @@ def build_rampdown_mapping_dataset(
 
     now = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     version = _package_version()
-    experiment_id = str(dn_attrs.get("experiment_id", "esm-up2p0-gwl2p0-50y-dn2p0"))
+    experiment_id = str(dn_attrs.get("experiment_id") or default_experiment_id)
 
     ds = xr.Dataset(
         data_vars={
@@ -738,6 +751,7 @@ def write_rampdown_products(
     :func:`write_products`.
     """
     model_list = resolve_model_list(models)
+    dn_dir = Path(dn_dir)
     dn_files = discover(dn_dir)
     pi_files = discover(picontrol_dir)
     require_discovered(model_list, dn_files, label="ramp-down")
@@ -745,6 +759,12 @@ def write_rampdown_products(
 
     written: list[tuple[str, Path]] = []
     grid = _t_grid_for_dn_dir(dn_dir) if t_grid is None else np.asarray(t_grid, float)
+    # Fallback label (only used when a file has no experiment_id of its own,
+    # e.g. CESM2) inferred from the staged directory, e.g.
+    # ".../esm-up2p0-gwl4p0-50y-dn2p0/gmstmon" -> "esm-up2p0-gwl4p0-50y-dn2p0".
+    default_experiment_id = (
+        dn_dir.parent.name if dn_dir.name == "gmstmon" else dn_dir.name
+    )
 
     for model in model_list:
         try:
@@ -756,6 +776,7 @@ def write_rampdown_products(
                 t_grid=grid,
                 mapping_version=mapping_version,
                 mapping_dir=outdir,
+                default_experiment_id=default_experiment_id,
             )
         except NotMappable as exc:
             raise MissingEnsembleDataError(f"Cannot map {model}: {exc}") from exc
