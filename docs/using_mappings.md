@@ -34,6 +34,11 @@ state. Tag analyses by leg; do not treat up and down as interchangeable.
 Both expect calendar-year coordinates. Values are never extrapolated beyond each model's
 realised range on that leg. `resample_to_gwl` linearly interpolates in time.
 
+`resample_to_gwl`'s `gwl_min` / `gwl_max` / `gwl_step` can narrow the grid or change its
+spacing, but cannot extend coverage beyond what the mapping file stores (0–4 °C for
+ramp-up, −2–5 °C for ramp-down): a wider request is clamped back to the stored range,
+with a warning, rather than silently returning NaN outside it.
+
 `relabel_to_gwl` preserves input values but the GWL coordinate is **unevenly spaced**
 (a 31-year running mean of annual GMSAT). Do not smooth after relabelling; use
 `resample_to_gwl` when you need a uniform grid.

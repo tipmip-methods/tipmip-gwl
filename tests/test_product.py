@@ -5,6 +5,8 @@ provenance -> baseline -> mapping pipeline end to end, in particular the
 out-of-span-branch-year regression covered by the NorESM2-LM case.
 """
 
+import warnings
+
 import cftime
 import numpy as np
 import pytest
@@ -260,3 +262,47 @@ def test_resample_to_gwl_uses_mapping_gwl_grid():
     out = resample_to_gwl(mapping_ds, diagnostic)
     np.testing.assert_allclose(out["gwl"].values, gwl)
     assert float(out.sel(gwl=0.0)) == pytest.approx(100.0)
+
+
+def test_resample_to_gwl_narrows_within_stored_range_silently():
+    gwl = np.arange(-1.0, 2.0001, 0.5)
+    years = 2000.0 + gwl * 10.0
+    mapping_ds = xr.Dataset(
+        {"year_of_gwl": ("gwl", years.astype(float))},
+        coords={"gwl": gwl.astype(float)},
+    )
+    diag_years = np.arange(1990, 2021)
+    diagnostic = xr.DataArray(
+        diag_years.astype(float) - 1900.0,
+        dims="year",
+        coords={"year": diag_years},
+        name="diag",
+    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        out = resample_to_gwl(mapping_ds, diagnostic, gwl_min=0.0, gwl_max=1.0)
+    assert float(out["gwl"].min()) >= 0.0
+    assert float(out["gwl"].max()) <= 1.0
+
+
+def test_resample_to_gwl_clamps_and_warns_beyond_stored_range():
+    gwl = np.arange(-1.0, 2.0001, 0.5)
+    years = 2000.0 + gwl * 10.0
+    mapping_ds = xr.Dataset(
+        {"year_of_gwl": ("gwl", years.astype(float))},
+        coords={"gwl": gwl.astype(float)},
+    )
+    diag_years = np.arange(1990, 2021)
+    diagnostic = xr.DataArray(
+        diag_years.astype(float) - 1900.0,
+        dims="year",
+        coords={"year": diag_years},
+        name="diag",
+    )
+    with pytest.warns(UserWarning, match="gwl_max=8 is above"):
+        out = resample_to_gwl(mapping_ds, diagnostic, gwl_max=8.0)
+    assert float(out["gwl"].max()) == pytest.approx(2.0)
+
+    with pytest.warns(UserWarning, match="gwl_min=-5 is below"):
+        out = resample_to_gwl(mapping_ds, diagnostic, gwl_min=-5.0)
+    assert float(out["gwl"].min()) == pytest.approx(-1.0)

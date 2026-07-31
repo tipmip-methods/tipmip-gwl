@@ -350,7 +350,12 @@ def _year_of_gwl_target(
 
     By default uses the ``gwl`` coordinate stored in ``mapping_ds`` (ramp-up
     0–4 °C or ramp-down −2–5 °C, etc.). Pass ``gwl_step`` / ``gwl_min`` /
-    ``gwl_max`` to resample onto a custom grid instead.
+    ``gwl_max`` to narrow the grid, or change its spacing, within that stored
+    range. These cannot *extend* coverage beyond what the file has: the
+    inverse map ``year_of_gwl`` is only tabulated on the stored ``gwl`` range,
+    so a wider request is clamped back to it (with a warning) rather than
+    silently returning NaN outside it. To cover a wider GWL range, rebuild the
+    mapping product with a wider ``T_grid`` (see :mod:`tipmip_gwl.build`).
     """
     src_gwl = np.asarray(mapping_ds["gwl"].values, dtype=float)
     src_years = np.asarray(mapping_ds["year_of_gwl"].values, dtype=float)
@@ -358,12 +363,36 @@ def _year_of_gwl_target(
     if finite.sum() < 2:
         raise ValueError("mapping_ds['year_of_gwl'] has too few finite values")
 
+    src_lo, src_hi = float(np.nanmin(src_gwl)), float(np.nanmax(src_gwl))
+
     if gwl_step is None and gwl_min is None and gwl_max is None:
         grid = src_gwl
     else:
         step = mapping.GWL_GRID_STEP if gwl_step is None else gwl_step
-        lo = float(np.nanmin(src_gwl)) if gwl_min is None else gwl_min
-        hi = float(np.nanmax(src_gwl)) if gwl_max is None else gwl_max
+        lo = src_lo if gwl_min is None else gwl_min
+        hi = src_hi if gwl_max is None else gwl_max
+
+        if lo < src_lo:
+            warnings.warn(
+                f"requested gwl_min={lo:g} is below this file's stored range "
+                f"({src_lo:g}\u2013{src_hi:g} \u00b0C); clamping to {src_lo:g}. "
+                "resample_to_gwl cannot extend coverage beyond what the "
+                "mapping product stores -- rebuild with a wider T_grid to "
+                "cover a lower GWL.",
+                stacklevel=3,
+            )
+            lo = src_lo
+        if hi > src_hi:
+            warnings.warn(
+                f"requested gwl_max={hi:g} is above this file's stored range "
+                f"({src_lo:g}\u2013{src_hi:g} \u00b0C); clamping to {src_hi:g}. "
+                "resample_to_gwl cannot extend coverage beyond what the "
+                "mapping product stores -- rebuild with a wider T_grid to "
+                "cover a higher GWL.",
+                stacklevel=3,
+            )
+            hi = src_hi
+
         grid = gwl_grid(step, hi, gwl_min=lo)
 
     years = np.interp(
@@ -404,6 +433,10 @@ def resample_to_gwl(
         Name of the annual coordinate on ``data`` (default ``"year"``).
     gwl_step, gwl_min, gwl_max : float, optional
         Custom GWL grid. If all are omitted, uses ``mapping_ds['gwl']`` as-is.
+        Can narrow the range or change the spacing, but cannot extend
+        coverage beyond the file's stored ``gwl`` range: a wider request is
+        clamped back to it (with a warning), since ``year_of_gwl`` has no
+        data outside that range to interpolate from.
 
     Returns
     -------

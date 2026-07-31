@@ -37,62 +37,67 @@ Mark **Status** with ✅ when done. Paste findings into [Findings log](#findings
 
 ---
 
-## Paper claims checklist (verify in Part 10)
+## Paper claims checklist (verified in Part 10)
 
-Use this as a tick-list when auditing the draft against code and committed outputs.
+Part 10 walked every item below (traceability table in [Part 10](#part-10-paper-traceability)).
+**No second audit pass needed** — update ticks here when you fix DRIFT items.
+
+Legend: `[x]` OK · `[ ]` DRIFT or open · `[ ]` UNVERIFIED (pre-submission)
 
 ### Method (Sect. 2)
 
-- [ ] **Three steps:** (1) piControl baseline anomaly, (2) 31-yr running mean + PAVA, (3) relabel vs resample
-- [ ] **GMSAT:** area-weighted global mean of `tas`; **days-in-month-weighted** annual mean (not plain calendar-year mean)
-- [ ] **Baseline:** 31-yr window centred on ramp-up branch year; **trailing** window for ACCESS-ESM1-5 & EC-Earth3-ESM-1; **full piControl mean** for NorESM2-LM; **same baseline** for all legs per model
-- [ ] **UKESM1-2-LL:** branch year **2277** (attrs or `KNOWN_BRANCH_YEARS` fallback documented consistently with Table A1)
-- [ ] **Smoothing:** 31-yr **centred** running mean on GMSAT anomaly only; diagnostics **not** smoothed
-- [ ] **PAVA:** non-decreasing ramp-up; non-increasing ramp-down; `mono_max` diagnostic (Table A2)
-- [ ] **Inversion:** flat segments nudged for strict monotonicity; **PCHIP** for t(GWL); NaN beyond realised range
-- [ ] **Resample grid:** ramp-up **0–4 °C**, step **0.02 °C** (201 points); ramp-down **−2–5 °C**, same step (351 points); shared 0–4 °C points aligned across legs
-- [ ] **Relabel:** forward map GWL(t); sub-annual timestamps via **linear interpolation in calendar time** between annual anchors
-- [ ] **Resample:** diagnostic **linear interpolation in time** at fractional year from inverse map; no extrapolation
-- [ ] **Hysteresis caveat:** ramp-up ≠ ramp-down at same GWL; zero-emission hold **not** mapped
+- [x] **Three steps:** (1) piControl baseline anomaly, (2) 31-yr running mean + PAVA, (3) relabel vs resample — `map_model` (M1)
+- [x] **GMSAT:** area-weighted global mean of `tas`; **days-in-month-weighted** annual mean — `io.load_gmsat_nc` (M2)
+- [ ] **Baseline:** 31-yr window centred on ramp-up branch year; **trailing** for ACCESS & EC-Earth; **full mean** for NorESM; **same baseline** all legs — **DRIFT:** GISS window is 21 yr not 31; rules otherwise OK (M3–M6, P10-5)
+- [ ] **UKESM1-2-LL:** branch year **2277** — **DRIFT:** value correct in v1 but hand-patched in staged attrs; no code fallback; caption says "decoded" (M7, P10-5)
+- [ ] **Smoothing:** 31-yr **centred** running mean on anomaly only; diagnostics **not** smoothed — **DRIFT:** window shrinks at edges, not centred; diagnostics OK (M8–M9, P10-1)
+- [x] **PAVA:** non-decreasing ramp-up; non-increasing ramp-down; `mono_max` / Table A2 (M10–M11)
+- [x] **Inversion:** epsilon nudge; **PCHIP** t(GWL); NaN beyond range (M12–M14)
+- [ ] **Resample grid:** 0–4 °C / −2–5 °C @ 0.02 °C; 201 / 351 pts; shared 0–4 aligned — **DRIFT:** stored grids OK (M15–M17); ramp-up **product range** truncated at 4 °C for 7/8 models, undocumented (M19, P10-2)
+- [ ] **Relabel:** forward GWL(t); sub-annual via linear interp in calendar time — **DRIFT:** works on decimal-year only; `datetime64` → silent empty array (M20, P10-4)
+- [x] **Resample:** linear time interp at fractional year; no extrapolation (M22–M23)
+- [x] **Hysteresis caveat:** up ≠ down at same GWL; zero-emission hold not mapped (M27–M28)
 
 ### Ensemble & product (Sect. 2–3)
 
-- [ ] **Eight** Tier-1 models (matches `INCLUDED_MODELS`, not co-author list with CESM2 etc.)
-- [ ] **24** mapping files (8 × ramp-up + 16 ramp-down), version **v1**
-- [ ] Product = **coordinate transform only** (`year_of_gwl`, `gwl_axis`, baseline metadata); not pre-remapped fields
-- [ ] Provenance: `tracking_id`s, mapping version, code version on output
-- [ ] `leg` API: `ramp-down-2c`, `ramp-down-4c` (paper wording vs code names)
+- [x] **Eight** Tier-1 models = `INCLUDED_MODELS`; no CESM2 in products (E1)
+- [x] **24** mapping files, version **v1** (E2)
+- [x] Product = coordinate transform only; no pre-remapped fields (E3)
+- [ ] **Provenance** on output — **DRIFT:** `tracking_id`s + versions present (E4); Sect. 3 overstates Table A1 attrs on file (`ref_full`, `|Δref|` missing) (E6, P10-8)
+- [x] **`leg` API:** `ramp-down-2c`, `ramp-down-4c` match paper (M24)
 
 ### Robustness (Sect. 2.3, Appendix A)
 
-- [ ] Table A1 values match `paper/tables/table_baseline_diagnostics.csv` (branch year, drift, ref_full, ref_window, |Δref|)
-- [ ] Table A2 values match `paper/tables/table_mono_max.csv`
-- [ ] Baseline sensitivity fig/table: `table_baseline_sensitivity.csv`, `fig_baseline_reference_comparison.png`
-- [ ] Window sensitivity (21/31/41 yr): `table_window_sensitivity.csv`
+- [ ] **Table A1** CSV vs printed table — **DRIFT:** numeric rows match (R1); NorESM CSV columns misleading vs printed "–" (R2, P10-13)
+- [x] **Table A2** matches `table_mono_max.csv` and products (R3)
+- [x] Baseline sensitivity: `table_baseline_sensitivity.csv`, `fig_baseline_reference_comparison.png` (R4–R5)
+- [ ] **Window sensitivity** 21/31/41 yr — **DRIFT (nit):** paper says 3.3 yr, table max 3.393 → 3.4 (R6)
 
-### Figures ↔ scripts
+### Figures ↔ scripts (Part 5 rebuild: all byte-identical)
 
-| Paper | Repo output | Script |
-|-------|-------------|--------|
-| Fig. 1 | `paper/figures/fig_mapping_axis_up_down.png` | `fig_mapping_axis_up_down.py` |
-| Fig. 2 | `fig_picontrol_baseline.png` | `fig_picontrol_baseline.py` |
-| Fig. 3 | `fig_remap_demo.png` | `fig_remap_demo.py` |
-| Fig. 4 | `fig_remap_binned_demo.png` | `fig_remap_binned_demo.py` |
-| Fig. 5 | `fig_hysteresis_mlotst_dn4c.png` | `fig_hysteresis_mlotst.py` |
-| Fig. 6 | `fig_baseline_reference_comparison.png` | `fig_baseline_reference_comparison.py` |
+| Paper | Status | Note |
+|-------|--------|------|
+| Fig. 1 | DRIFT | Cropped 220 yr / 4.5 °C unstated (F1) |
+| Fig. 2 | OK | Baseline cases match caption |
+| Fig. 3 | DRIFT | Relabel correct; caption wrong (4 °C clip) (F3, P10-7) |
+| Fig. 4 | DRIFT | Resample demo OK; caption colours wrong (F4) |
+| Fig. 5 | OK | Hysteresis + grid alignment |
+| Fig. 6 | OK | Seven-of-eight baseline comparison |
+
+Scripts: `fig_mapping_axis_up_down.py` … `fig_baseline_reference_comparison.py` (unchanged mapping in original table).
 
 ### Data & code availability (Sect. 3, end)
 
-- [ ] Public **code** on GitHub + Zenodo DOI (placeholders filled before submission)
-- [ ] **Mappings** on restricted Zenodo + Levante path — consistent with README (`tipmip-gwl-mappings`, not bundled in public repo)
-- [ ] Paper says “single driver script” → `paper/build_all.py`
-- [ ] Paper mentions **CDO fldmean** for GMSAT — trace to `build_gmstmon.py` / `io.py` (wording vs implementation)
+- [ ] Public **code** GitHub + Zenodo DOI — **UNVERIFIED:** placeholders only (D1)
+- [ ] **Mappings** restricted Zenodo + Levante — **DRIFT:** repo split OK; paper Sect. 3 says "on github"; Levante path ≠ README (D3–D4, P10-3, P10-6)
+- [x] "Single driver script" → `paper/build_all.py` reproduces all figures/tables (D5)
+- [ ] **CDO fldmean** for GMSAT — **DRIFT:** v1 inputs all CDO-built; code allows silent xarray fallback (D6)
 
-### Known paper–repo deltas to watch
+### Known paper–repo deltas (Part 10)
 
-- Cover-page **CESM2** in co-author table vs **eight-model** analysis (must not appear in code/products)
-- Draft Levante path `/work/bm1448/tipmip-gwl-mappings` vs maintainer path `/work/bm1448/analysis/harteg/...` — harmonise before submission
-- Internal cover “problematic models” notes (UKESM/ACCESS/NorESM) vs what implementation actually does today
+- [x] **CESM2** on cover only — absent from code, products, analysis (K1)
+- [ ] **Levante path** — still mismatched paper vs README (K2)
+- [ ] **Internal cover** "problematic models" notes — outdated (UKESM/NorESM resolved in v1) (K3)
 
 ---
 
