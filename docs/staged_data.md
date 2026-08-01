@@ -10,7 +10,7 @@ See [using_mappings.md](using_mappings.md).
 
 | Data | In repo? | Notes |
 |------|----------|-------|
-| GWL mapping products (`gwlmap_*_v1.nc`) | **Separate repo** | `tipmip-gwl-mappings` sibling clone; TIPMIP embargo |
+| GWL mapping products (`gwlmap_*_v1.nc`) | **Yes** (`mapping/`) | 27 files, 9 models × 3 legs |
 | gmstmon, mlotst, sea-ice fields | **No** | Obtain via TIPMIP / institutional access |
 
 ## Directory layout
@@ -55,7 +55,7 @@ python paper/build_all.py \
   --dn4-dir ~/data/tipmip/tas/esm-up2p0-gwl4p0-50y-dn2p0/gmstmon
 ```
 
-Rebuilds mapping products in ``tipmip-gwl-mappings/`` when gmstmon is staged,
+Rebuilds mapping products in ``mapping/`` when gmstmon is staged,
 then runs each `paper/*.py` script.
 Outputs: `paper/figures/`, `paper/tables/`. Ramp-down steps are skipped if dn gmstmon
 is missing.

@@ -10,26 +10,9 @@ cd tipmip-gwl
 pip install -e .
 ```
 
-**Mapping products** (`gwlmap_*_v1.nc`) are **not** in this repository — TIPMIP
-data remain under embargo. Clone or copy the separate data repo as a **sibling**
-directory:
-
-```text
-parent/
-  tipmip-gwl/
-  tipmip-gwl-mappings/    # 24 NetCDF coordinate products (v1)
-```
-
-TIPMIP collaborators with Levante access:
-
-```bash
-scp -r levante:/work/bm1448/analysis/harteg/tipmip-gwl-mappings ../tipmip-gwl-mappings
-```
-
-Others: request access via the GMD review Zenodo record (embargoed until TIPMIP
-release) or contact the authors.
-
-Override the search path: `export TIPMIP_GWL_MAPPINGS=/path/to/mappings`.
+**Mapping products** (`gwlmap_*_v1.nc`) are bundled in [`mapping/`](mapping/) (27 NetCDF
+coordinate files, version `v1`). Override the search path:
+`export TIPMIP_GWL_MAPPINGS=/path/to/mappings`.
 
 ## Quick use
 
@@ -55,10 +38,10 @@ Worked example: [examples/resample_diagnostic.ipynb](examples/resample_diagnosti
 
 ## Mapping products (v1)
 
-When `tipmip-gwl-mappings` is installed alongside this repo:
+Bundled under `mapping/`:
 
-- **8 ramp-up** (`load_mapping(model)`)
-- **16 ramp-down** (`leg="ramp-down-2c"` or `"ramp-down-4c"`)
+- **9 ramp-up** (`load_mapping(model)`)
+- **18 ramp-down** (`leg="ramp-down-2c"` or `"ramp-down-4c"`)
 
 Each file is a **coordinate product** (`year_of_gwl`, `gwl_axis`, baseline metadata), not remapped fields. Per-model baseline details: `paper/tables/table_baseline_diagnostics.csv` (Appendix A1).
 

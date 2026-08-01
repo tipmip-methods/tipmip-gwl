@@ -53,7 +53,7 @@ Other helper: `scripts/fix_ukesm_branch_attrs.py` — see [scripts/README.md](..
 
 ## Build mappings
 
-Default output: sibling ``../tipmip-gwl-mappings/`` (override with ``--outdir`` or
+Default output: ``mapping/`` in this repository (override with ``--outdir`` or
 ``TIPMIP_GWL_MAPPINGS``).
 
 ```bash

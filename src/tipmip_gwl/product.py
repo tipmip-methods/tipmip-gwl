@@ -29,7 +29,7 @@ class NotMappable(Exception):
 DEFAULT_EXPERIMENT = "esm-up2p0"
 DEFAULT_MAPPING_VERSION = "v1"
 
-MAPPINGS_REPO_NAME = "tipmip-gwl-mappings"
+MAPPINGS_DIR_NAME = "mapping"
 MAPPINGS_ENV_VAR = "TIPMIP_GWL_MAPPINGS"
 _WARNED_MISSING_MAPPINGS = False
 
@@ -213,20 +213,20 @@ def package_repo_root() -> Path:
 
 
 def default_mappings_dir() -> Path:
-    """Sibling ``tipmip-gwl-mappings`` clone or ``TIPMIP_GWL_MAPPINGS`` override."""
+    """Bundled ``mapping/`` directory in this repo, or ``TIPMIP_GWL_MAPPINGS`` override."""
     if raw := os.environ.get(MAPPINGS_ENV_VAR):
         return Path(raw).expanduser()
-    return package_repo_root().parent / MAPPINGS_REPO_NAME
+    return package_repo_root() / MAPPINGS_DIR_NAME
 
 
 def bundled_mappings_dir() -> Path:
-    """Directory of published ``gwlmap_*.nc`` files (separate data repository)."""
+    """Directory of published ``gwlmap_*.nc`` files shipped with this repository."""
     global _WARNED_MISSING_MAPPINGS
     root = default_mappings_dir()
     if not root.is_dir() and not _WARNED_MISSING_MAPPINGS:
         warnings.warn(
             f"Mapping data directory not found: {root}. "
-            f"Obtain tipmip-gwl-mappings (TIPMIP embargo) or set {MAPPINGS_ENV_VAR}. "
+            f"Clone tipmip-gwl with mapping/ included or set {MAPPINGS_ENV_VAR}. "
             "See README.md.",
             stacklevel=2,
         )
@@ -289,7 +289,7 @@ def bundled_mapping_path(
         raise FileNotFoundError(
             f"no mapping for {model!r} ({experiment}, {version}) in "
             f"{bundled_mappings_dir()}; "
-            f"available models: {available or '(none — obtain tipmip-gwl-mappings)'}"
+            f"available models: {available or '(none — rebuild or obtain mapping/ products)'}"
         )
     return path
 
@@ -307,7 +307,7 @@ def load_mapping(
 
     By default opens the bundled **ramp-up** mapping. Ramp-down legs
     (``"ramp-down-2c"``, ``"ramp-down-4c"``) are also bundled — pass ``leg=``
-    to select them. By default reads from sibling ``tipmip-gwl-mappings/`` (or
+    to select them. By default reads from ``mapping/`` in this repository (or
     ``TIPMIP_GWL_MAPPINGS``). Long CMIP ``experiment_id`` strings and explicit
     ``path=`` are escape hatches for advanced use.
 
@@ -322,8 +322,8 @@ def load_mapping(
     experiment : str, optional
         Exact CMIP experiment id (overrides ``leg`` filename matching).
     mapping_dir : path-like, optional
-        Directory of ``gwlmap_*.nc`` files. Default: sibling
-        ``tipmip-gwl-mappings/`` (see :func:`default_mappings_dir`).
+        Directory of ``gwlmap_*.nc`` files. Default: ``mapping/`` in this repo
+        (see :func:`default_mappings_dir`).
     path : path-like, optional
         Open this file directly (bypasses ``leg`` / ``mapping_dir`` search).
     """

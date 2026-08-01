@@ -7,5 +7,7 @@ dist/
 .venv/
 venv/
 *.nc
+!/mapping/
+!/mapping/*.nc
 /figures/
 .DS_Store

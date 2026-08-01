@@ -38,9 +38,8 @@ Maintainer builds: `from tipmip_gwl.build import write_products, write_rampdown_
 
 ## Mapping data
 
-- Mapping products: sibling **`tipmip-gwl-mappings/`** (24 × `gwlmap_*_v1.nc`;
-  not shipped inside this package while TIPMIP is embargoed)
-- Builds write directly to that directory by default (`tipmip-gwl-build`, `build_all.py`)
+- Mapping products: **`mapping/`** in this repo (27 × `gwlmap_*_v1.nc`; 9 models × 3 legs)
+- Builds write there by default (`tipmip-gwl-build`, `build_all.py`)
 - Override path: `TIPMIP_GWL_MAPPINGS` or `--outdir` / `--mapping-dir`
 
 ## Included ensemble
@@ -52,8 +51,7 @@ staging directories are ignored.
 
 ## Staged data (not in repo)
 
-See [docs/staged_data.md](docs/staged_data.md). Mapping output: `tipmip-gwl-mappings/`
-(sibling clone).
+See [docs/staged_data.md](docs/staged_data.md). Mapping output: `mapping/` in this repo.
 
 Site-specific HPC/rsync scripts are **not** in this public repo. Maintainer
 operational workflow (Levante build, laptop download, full rebuild): sibling clone

@@ -1,8 +1,8 @@
 # Using mapping products
 
 Load a bundled mapping and apply it to your own **annual** diagnostic — scalar,
-regional, or spatially resolved. Mapping NetCDFs live in sibling repo
-``tipmip-gwl-mappings`` (see README). Only the time axis is re-indexed; other
+regional, or spatially resolved. Mapping NetCDFs live in ``mapping/`` (see README).
+Only the time axis is re-indexed; other
 dimensions pass through unchanged.
 
 ## Load a mapping
@@ -10,7 +10,7 @@ dimensions pass through unchanged.
 ```python
 from tipmip_gwl import load_mapping, list_models
 
-print(list_models())  # eight Tier-1 models, mapping version v1
+print(list_models())  # nine Tier-1 models, mapping version v1
 
 mp = load_mapping("GFDL-ESM2M")                        # xr.Dataset, ramp-up
 mp_dn = load_mapping("GFDL-ESM2M", leg="ramp-down-4c") # xr.Dataset, ramp-down

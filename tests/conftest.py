@@ -10,7 +10,7 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS_DIR = REPO_ROOT / "scripts"
-MAPPINGS_DIR = REPO_ROOT.parent / "tipmip-gwl-mappings"
+MAPPINGS_DIR = REPO_ROOT / "mapping"
 
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
@@ -20,5 +20,5 @@ if MAPPINGS_DIR.is_dir():
 
 requires_mappings = pytest.mark.skipif(
     not MAPPINGS_DIR.is_dir(),
-    reason="tipmip-gwl-mappings sibling clone required (see README.md)",
+    reason="mapping/ directory with gwlmap_*.nc required (see README.md)",
 )
