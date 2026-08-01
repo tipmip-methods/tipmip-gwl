@@ -47,6 +47,8 @@ DEFAULT_MLOTST_DIR = Path.home() / "data/tipmip/mlotst/esm-up2p0"
 DEFAULT_DN_DIR = Path.home() / "data/tipmip/tas/esm-up2p0-gwl2p0-50y-dn2p0/gmstmon"
 DEFAULT_DN4_DIR = Path.home() / "data/tipmip/tas/esm-up2p0-gwl4p0-50y-dn2p0/gmstmon"
 DEFAULT_MLOTST_DN_DIR = Path.home() / "data/tipmip/mlotst/esm-up2p0-gwl4p0-50y-dn2p0"
+DEFAULT_SIVOL_UP_DIR = Path.home() / "data/tipmip/sivol/esm-up2p0"
+DEFAULT_SIVOL_DN_DIR = Path.home() / "data/tipmip/sivol/esm-up2p0-gwl4p0-50y-dn2p0"
 DEFAULT_MAPPING_DIR = default_mappings_dir()
 
 
@@ -62,7 +64,16 @@ def _report_written(written, skipped):
         print(f"  skip  {model:20s} -- {reason}")
 
 
-def main(up2p0_dir, picontrol_dir, mlotst_dir, mapping_dir, dn_dir=None, dn4_dir=None):
+def main(
+    up2p0_dir,
+    picontrol_dir,
+    mlotst_dir,
+    mapping_dir,
+    dn_dir=None,
+    dn4_dir=None,
+    sivol_up_dir=None,
+    sivol_dn_dir=None,
+):
     up2p0_dir = Path(up2p0_dir)
     picontrol_dir = Path(picontrol_dir)
     mlotst_dir = Path(mlotst_dir)
@@ -121,6 +132,8 @@ def main(up2p0_dir, picontrol_dir, mlotst_dir, mapping_dir, dn_dir=None, dn4_dir
     table_mono_max.main(mapping_dir, up2p0_dir, picontrol_dir)
 
     mlotst_dn = DEFAULT_MLOTST_DN_DIR
+    sivol_up = Path(sivol_up_dir) if sivol_up_dir else DEFAULT_SIVOL_UP_DIR
+    sivol_dn = Path(sivol_dn_dir) if sivol_dn_dir else DEFAULT_SIVOL_DN_DIR
     if dn_written:
         print("\n=== [9/10] fig_mapping_axis_up_down ===")
         out = fig_mapping_axis_up_down.main(
@@ -129,19 +142,26 @@ def main(up2p0_dir, picontrol_dir, mlotst_dir, mapping_dir, dn_dir=None, dn4_dir
         )
         print(f"  wrote {out}")
 
-    if dn_written and mlotst_dn.exists():
+    if dn_written and mlotst_dn.exists() and sivol_up.exists() and sivol_dn.exists():
         print("\n=== [10/10] fig_hysteresis_mlotst ===")
         out = fig_hysteresis_mlotst.main(
             mlotst_dir,
             mlotst_dn,
+            sivol_up,
+            sivol_dn,
             mapping_dir,
             fig_hysteresis_mlotst.DEFAULT_OUT,
         )
         print(f"  wrote {out}")
     elif not dn_written:
         print("\n=== [9–10/10] ramp-down figures: skipped (ramp-down mapping not rebuilt) ===")
-    else:
+    elif not mlotst_dn.exists():
         print(f"\n=== [10/10] fig_hysteresis_mlotst: skipped ({mlotst_dn} not staged) ===")
+    else:
+        print(
+            f"\n=== [10/10] fig_hysteresis_mlotst: skipped "
+            f"(sivol not staged: {sivol_up} / {sivol_dn}) ==="
+        )
 
     print(f"\nAll figures/tables written under {PAPER_DIR}/figures and {PAPER_DIR}/tables")
 
@@ -162,6 +182,8 @@ if __name__ == "__main__":
         default=str(DEFAULT_DN_DIR),
         help="ramp-down from 2°C hold gmstmon directory; omit or point at a non-existent path to skip",
     )
+    parser.add_argument("--sivol-up-dir", default=str(DEFAULT_SIVOL_UP_DIR))
+    parser.add_argument("--sivol-dn-dir", default=str(DEFAULT_SIVOL_DN_DIR))
     args = parser.parse_args()
     main(
         args.up2p0_dir,
@@ -170,4 +192,6 @@ if __name__ == "__main__":
         args.mapping_dir,
         args.dn_dir,
         args.dn4_dir,
+        args.sivol_up_dir,
+        args.sivol_dn_dir,
     )

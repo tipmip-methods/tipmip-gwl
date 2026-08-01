@@ -1,8 +1,9 @@
 """
 Build Appendix Table A1 (per-model baseline and robustness diagnostics) as a CSV.
 
-Combines branch year, piControl drift, and the full-vs-window baseline
-comparison into one per-model table (Appendix Table A1). Related CSV:
+Combines branch year, piControl drift, maximum ramp-up GWL on the monotone
+axis, and the full-vs-window baseline comparison into one per-model table
+(Appendix Table A1). Related CSV:
 ``table_baseline_sensitivity.csv``. Monotonization: ``table_mono_max.py`` (A2).
 
 Usage::
@@ -36,6 +37,7 @@ FIELDNAMES = (
     "ref_full_K",
     "ref_window_K",
     "abs_dref_K",
+    "max_gwl_mono_degC",
     "note",
 )
 
@@ -43,6 +45,13 @@ FIELDNAMES = (
 def _r3(x):
     """Round to three decimals; pass through None."""
     return None if x is None else round(float(x), 3)
+
+
+def _r2(x):
+    """Round to two decimals; pass through None and non-finite values."""
+    if x is None or not np.isfinite(x):
+        return None
+    return round(float(x), 2)
 
 
 def _baseline_note(d, window=31):
@@ -53,6 +62,19 @@ def _baseline_note(d, window=31):
     if not (d.pi_years.min() <= branch <= d.pi_years.max()):
         return "branch year out of range"
     return ""
+
+
+def _branch_window_reference(d) -> float | None:
+    """31-yr branch-window mean for Table A1, or None when not computable.
+
+    ``ModelDiag.pi_reference`` is the *published* baseline and falls back to the
+    full piControl mean when the branch year is missing or out of range. For the
+    full-vs-window comparison column we only report a window mean when
+    :func:`tipmip_gwl.baseline.compute_baseline` actually used one.
+    """
+    if d.baseline_method.startswith("branch_window"):
+        return d.pi_reference
+    return None
 
 
 def model_order_by_ref_full(up2p0_dir, picontrol_dir, window=31) -> list[str]:
@@ -74,10 +96,16 @@ def main(up2p0_dir, picontrol_dir, window=31, out_csv=None):
     for d in diags:
         if d.pi_years is None:
             continue  # no piControl at all; not mappable (excluded, not in v1)
-        ref_win = d.pi_reference
+        ref_win = _branch_window_reference(d)
         ref_full = d.pi_reference_full
         note = _baseline_note(d, window=window)
-        d_ref = abs(ref_full - ref_win) if np.isfinite(ref_full) and np.isfinite(ref_win) else None
+        d_ref = (
+            abs(ref_full - ref_win)
+            if ref_win is not None
+            and np.isfinite(ref_full)
+            and np.isfinite(ref_win)
+            else None
+        )
         pi_range = f"{int(d.pi_years.min())}–{int(d.pi_years.max())}"
         rows.append(
             {
@@ -88,6 +116,7 @@ def main(up2p0_dir, picontrol_dir, window=31, out_csv=None):
                 "ref_full_K": _r3(ref_full),
                 "ref_window_K": _r3(ref_win),
                 "abs_dref_K": _r3(d_ref),
+                "max_gwl_mono_degC": _r2(d.max_gwl),
                 "note": note or "",
             }
         )
@@ -98,7 +127,7 @@ def main(up2p0_dir, picontrol_dir, window=31, out_csv=None):
 
     hdr = (
         f"{'model':<22} {'branch':>7} {'picontrol':>11} {'drift':>8} {'ref_full':>9} "
-        f"{'ref_win':>9} {'dref':>7}  note"
+        f"{'ref_win':>9} {'dref':>7} {'maxGWL':>7}  note"
     )
     print(hdr)
     print("-" * len(hdr))
@@ -110,10 +139,15 @@ def main(up2p0_dir, picontrol_dir, window=31, out_csv=None):
         )
         rw = f"{r['ref_window_K']:.3f}" if r["ref_window_K"] is not None else "-"
         dr = f"{r['abs_dref_K']:.3f}" if r["abs_dref_K"] is not None else "not tested"
+        mg = (
+            f"{r['max_gwl_mono_degC']:.2f}"
+            if r["max_gwl_mono_degC"] is not None
+            else "-"
+        )
         print(
             f"{r['model']:<22} {by:>7} {r['picontrol_range']:>11} "
             f"{r['picontrol_drift_degC_per_cy']:+8.3f} "
-            f"{r['ref_full_K']:9.3f} {rw:>9} {dr:>10}  {r['note']}"
+            f"{r['ref_full_K']:9.3f} {rw:>9} {dr:>10} {mg:>7}  {r['note']}"
         )
 
     tested = [r["abs_dref_K"] for r in rows if r["abs_dref_K"] is not None]
