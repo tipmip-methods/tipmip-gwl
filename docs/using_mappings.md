@@ -16,7 +16,7 @@ mp = load_mapping("GFDL-ESM2M")                        # xr.Dataset, ramp-up
 mp_dn = load_mapping("GFDL-ESM2M", leg="ramp-down-4c") # xr.Dataset, ramp-down
 ```
 
-Local rebuild instead of the sibling snapshot: `load_mapping(..., mapping_dir=...)`
+Local rebuild instead of bundled files: `load_mapping(..., mapping_dir=...)`
 or explicit `path=`. Each mapping is an **xarray Dataset** with coordinates
 `year_of_gwl(gwl)` and `gwl_axis(year)` — pass it to `resample_to_gwl` /
 `relabel_to_gwl`.
@@ -31,8 +31,9 @@ state. Tag analyses by leg; do not treat up and down as interchangeable.
 | `resample_to_gwl` | Shared grid (0–4 °C ramp-up; −2–5 °C ramp-down; 0.02 °C steps) | Compare or stack models at the same GWL |
 | `relabel_to_gwl` | Native per-model GWL (uneven) | Plot one model without binning |
 
-Both expect calendar-year coordinates. Values are never extrapolated beyond each model's
-realised range on that leg. `resample_to_gwl` linearly interpolates in time.
+Both functions expect the time/year coordinate to be **numeric calendar years**
+(e.g. `2001` or `2001.5`), not CF `datetime64` or cftime — convert before calling.
+Values are never extrapolated beyond each model's realised range on that leg. `resample_to_gwl` linearly interpolates in time.
 
 `resample_to_gwl`'s `gwl_min` / `gwl_max` / `gwl_step` can narrow the grid or change its
 spacing, but cannot extend coverage beyond what the mapping file stores (0–4 °C for

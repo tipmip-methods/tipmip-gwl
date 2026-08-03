@@ -26,6 +26,17 @@ import xarray as xr
 TAS_TABLES = ("Amon", "APmon")
 TIMERANGE_RE = re.compile(r"^(?P<tstart>\d+)-(?P<tend>\d+)$")
 
+# Manifest ``experiment_id`` may use canonical gwl* names while NorESM tas paths
+# retain swl* in filenames (see maintainer ``levante_tas_manifest.tsv``).
+EXPERIMENT_ALIASES: dict[str, tuple[str, ...]] = {
+    "esm-up2p0-gwl2p0-50y-dn2p0": ("esm-up2p0-swl2p0-50y-dn2p0",),
+    "esm-up2p0-gwl4p0-50y-dn2p0": ("esm-up2p0-swl4p0-50y-dn2p0",),
+}
+
+
+def _experiment_ids_for_build(exp: str) -> frozenset[str]:
+    return frozenset((exp, *EXPERIMENT_ALIASES.get(exp, ())))
+
 
 def parse_tas_chunk(path: Path | str) -> dict | None:
     """Parse CMIP-style ``tas_*`` chunk filename; return metadata or ``None``."""
@@ -65,6 +76,7 @@ def load_tas_chunks(
     manifest = Path(manifest)
     selected = set(models) if models else None
     grouped: dict[str, list[tuple[str, Path]]] = defaultdict(list)
+    exp_ids = _experiment_ids_for_build(exp)
 
     with manifest.open(newline="") as f:
         lines = [
@@ -81,7 +93,7 @@ def load_tas_chunks(
             model = row["model"].strip()
             row_exp = row["experiment_id"].strip()
             path = Path(row["path"].strip())
-            if row_exp != exp:
+            if row_exp not in exp_ids:
                 continue
             if selected is not None and model not in selected:
                 continue

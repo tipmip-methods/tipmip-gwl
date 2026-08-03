@@ -20,6 +20,7 @@ from tipmip_gwl.product import (
     bundled_mappings_dir,
     list_models,
     resolve_mapping_path,
+    relabel_to_gwl,
     resample_to_gwl,
 )
 
@@ -306,3 +307,74 @@ def test_resample_to_gwl_clamps_and_warns_beyond_stored_range():
     with pytest.warns(UserWarning, match="gwl_min=-5 is below"):
         out = resample_to_gwl(mapping_ds, diagnostic, gwl_min=-5.0)
     assert float(out["gwl"].min()) == pytest.approx(-1.0)
+
+
+def _synthetic_forward_mapping():
+    years = np.arange(2000.0, 2011.0)
+    return xr.Dataset(
+        {"gwl_axis": ("year", np.linspace(0.0, 2.0, years.size))},
+        coords={"year": years},
+    )
+
+
+def _numeric_year_diagnostic():
+    years = np.arange(2000.0, 2011.0)
+    return xr.DataArray(
+        years - 2000.0,
+        dims="time",
+        coords={"time": years},
+        name="diag",
+    )
+
+
+def test_relabel_to_gwl_accepts_numeric_calendar_years():
+    out = relabel_to_gwl(_synthetic_forward_mapping(), _numeric_year_diagnostic(), year_dim="time")
+    assert out.dims == ("gwl",)
+    assert out.sizes["gwl"] == 11
+    assert float(out["gwl"].max()) == pytest.approx(2.0)
+
+
+def test_relabel_to_gwl_rejects_datetime64_time():
+    times = np.array(["2000-01-01", "2001-01-01", "2002-01-01"], dtype="datetime64[ns]")
+    diagnostic = xr.DataArray(
+        [0.0, 1.0, 2.0],
+        dims="time",
+        coords={"time": times},
+        name="diag",
+    )
+    with pytest.raises(TypeError, match="numeric coordinate"):
+        relabel_to_gwl(_synthetic_forward_mapping(), diagnostic, year_dim="time")
+
+
+def test_relabel_to_gwl_rejects_cftime_time():
+    times = [
+        cftime.DatetimeNoLeap(2000, 1, 1),
+        cftime.DatetimeNoLeap(2001, 1, 1),
+        cftime.DatetimeNoLeap(2002, 1, 1),
+    ]
+    diagnostic = xr.DataArray(
+        [0.0, 1.0, 2.0],
+        dims="time",
+        coords={"time": times},
+        name="diag",
+    )
+    with pytest.raises(TypeError, match="numeric coordinate"):
+        relabel_to_gwl(_synthetic_forward_mapping(), diagnostic, year_dim="time")
+
+
+def test_resample_to_gwl_rejects_datetime64_time():
+    gwl = np.array([0.0, 1.0, 2.0])
+    years = np.array([2000.0, 2005.0, 2010.0])
+    mapping_ds = xr.Dataset(
+        {"year_of_gwl": ("gwl", years)},
+        coords={"gwl": gwl},
+    )
+    times = np.array(["2000-01-01", "2005-01-01", "2010-01-01"], dtype="datetime64[ns]")
+    diagnostic = xr.DataArray(
+        [0.0, 1.0, 2.0],
+        dims="time",
+        coords={"time": times},
+        name="diag",
+    )
+    with pytest.raises(TypeError, match="numeric coordinate"):
+        resample_to_gwl(mapping_ds, diagnostic, year_dim="time")

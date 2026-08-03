@@ -401,6 +401,34 @@ def _year_of_gwl_target(
     return xr.DataArray(years, dims=["gwl"], coords={"gwl": ("gwl", grid)})
 
 
+def _non_decimal_year_error() -> TypeError:
+    return TypeError(
+        "Expected calendar years as a numeric coordinate (e.g. 2001 or 2001.5), "
+        "not datetime64 or cftime. Decode CF time and convert to decimal calendar "
+        "years before calling relabel_to_gwl or resample_to_gwl."
+    )
+
+
+def _decimal_calendar_years(coord_values, *, year_offset: float = 0.0) -> np.ndarray:
+    """Return calendar-year floats; raise if the coordinate is not numeric years."""
+    arr = np.asarray(coord_values)
+    if np.issubdtype(arr.dtype, np.datetime64):
+        raise _non_decimal_year_error()
+    if arr.dtype == object and arr.size:
+        sample = arr.ravel()[0]
+        if getattr(sample, "calendar", None) is not None:
+            raise _non_decimal_year_error()
+    try:
+        years = np.asarray(arr, dtype=float)
+    except (TypeError, ValueError) as exc:
+        raise _non_decimal_year_error() from exc
+    years = years + float(year_offset)
+    finite = years[np.isfinite(years)]
+    if finite.size and np.nanmax(np.abs(finite)) > 10_000:
+        raise _non_decimal_year_error()
+    return years
+
+
 def resample_to_gwl(
     mapping_ds,
     data,
@@ -425,10 +453,10 @@ def resample_to_gwl(
         Optional ``gwl_step`` / ``gwl_min`` / ``gwl_max`` refine or
         subset that grid.
     data : x.DataArray or x.Dataset
-        The diagnostic on an **annual** axis whose coordinate values are calendar
-        years (named ``year_dim``). Alignment is by coordinate *value*, so the
-        diagnostic need not start on the same year or have the same length as the
-        ramp-up; non-overlapping years simply map to NaN.
+        The diagnostic on an **annual** axis whose coordinate values are **numeric
+        calendar years** (named ``year_dim``), e.g. ``2001`` or ``2001.5``. CF
+        ``datetime64`` / cftime coordinates are not accepted — convert to decimal
+        years first.
     year_dim : str
         Name of the annual coordinate on ``data`` (default ``"year"``).
     gwl_step, gwl_min, gwl_max : float, optional
@@ -459,6 +487,7 @@ def resample_to_gwl(
             f"data has no {year_dim!r} dimension; pass year_dim=... with the "
             f"name of its annual coordinate (dims: {tuple(getattr(data, 'dims', ()))})"
         )
+    _decimal_calendar_years(data[year_dim].values)
     target = _year_of_gwl_target(
         mapping_ds, gwl_step=gwl_step, gwl_min=gwl_min, gwl_max=gwl_max
     )
@@ -484,7 +513,8 @@ def relabel_to_gwl(
     mapping_ds : xarray.Dataset
         A mapping product. Only ``gwl_axis`` and its ``year`` coord are used.
     data : xarray.DataArray or xarray.Dataset
-        Data on a time/year axis named ``year_dim``.
+        Data on a time/year axis named ``year_dim``. Coordinate values must be
+        **numeric calendar years** (not ``datetime64`` / cftime).
     year_dim : str
         Name of the time coordinate on ``data`` (default ``"year"``).
     year_offset : float
@@ -507,7 +537,7 @@ def relabel_to_gwl(
             f"data has no {year_dim!r} dimension; pass year_dim=... with the "
             f"name of its time coordinate (dims: {tuple(getattr(data, 'dims', ()))})"
         )
-    years = np.asarray(data[year_dim].values, dtype=float) + float(year_offset)
+    years = _decimal_calendar_years(data[year_dim].values, year_offset=year_offset)
     yr = np.asarray(mapping_ds["year"].values, dtype=float)
     ga = np.asarray(mapping_ds["gwl_axis"].values, dtype=float)
     finite = np.isfinite(ga)

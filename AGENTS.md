@@ -1,14 +1,14 @@
 # Agent context: tipmip-gwl
 
 Orientation for coding agents. Human docs: `README.md`, `docs/using_mappings.md`,
-`docs/building_mappings.md`, `docs/staged_data.md`.
+`docs/building_mappings.md`, `docs/staged_data.md`, `docs/paper_reproduction.md`.
 
 ## Three purposes
 
 | Purpose | Location | Audience |
 |---------|----------|----------|
 | **User library** | `src/tipmip_gwl/` | Apply bundled mappings via `load_mapping`, `resample_to_gwl`, `relabel_to_gwl` |
-| **Paper reproduction** | `paper/` | Regenerate committed figures/tables (`pip install -e ".[paper]"`, staged data) |
+| **Paper reproduction** | `paper/` | Regenerate committed figures/tables — [docs/paper_reproduction.md](docs/paper_reproduction.md) |
 | **Mapping pipeline** | `src/tipmip_gwl/build.py`, `scripts/` | Rebuild `gwlmap_*.nc` when new gmstmon is available |
 
 Do not expand the installed package beyond the user API. Preprocessing, plotting, and

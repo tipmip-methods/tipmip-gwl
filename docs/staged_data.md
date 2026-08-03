@@ -1,10 +1,13 @@
 # Staged data and paper reproduction
 
 Paper reproduction and mapping rebuilds expect **TIPMIP diagnostics on disk**.
-This repository **does not distribute** raw tas, gmstmon, or mlotst files.
+This repository **does not distribute** raw tas, gmstmon, mlotst, or sea-ice fields.
 
 End users applying bundled mappings to their own diagnostics need **no staged data**.
 See [using_mappings.md](using_mappings.md).
+
+**Figure/table commands, output list, and full data layout:**
+[paper_reproduction.md](paper_reproduction.md).
 
 ## Bundled vs staged
 
@@ -28,6 +31,9 @@ Default root: `~/data/tipmip/` (override via CLI flags on `build_all.py` and
   mlotst/
     esm-up2p0/                             # native *_annualmax.nc (remap figures)
     esm-up2p0-gwl4p0-50y-dn2p0/            # hysteresis figure (optional)
+  sivol/
+    esm-up2p0/                             # sea-ice volume (hysteresis figure)
+    esm-up2p0-gwl4p0-50y-dn2p0/
 ```
 
 Included models and required gmstmon experiments:
@@ -37,28 +43,10 @@ Included models and required gmstmon experiments:
 
 1. **TIPMIP protocol data** — request access through your institution (ESGF, DKRZ, etc.).
 2. **Build gmstmon from tas** — [building_mappings.md](building_mappings.md) § preprocess.
-3. **Bundled mappings only** — `pip install tipmip-gwl`; no TIPMIP staging required.
+3. **Bundled mappings only** — clone this repo and `pip install -e .`; no TIPMIP staging required.
 
 This repo documents **how to process** staged files, not **how to download** them from
 a specific HPC account. Site-specific download and batch scripts are not shipped here.
 
-## Reproduce paper figures
-
-```bash
-pip install -e ".[paper]"
-
-python paper/build_all.py \
-  --up2p0-dir ~/data/tipmip/tas/esm-up2p0/gmstmon \
-  --picontrol-dir ~/data/tipmip/tas/esm-piControl/gmstmon \
-  --mlotst-dir ~/data/tipmip/mlotst/esm-up2p0 \
-  --dn-dir ~/data/tipmip/tas/esm-up2p0-gwl2p0-50y-dn2p0/gmstmon \
-  --dn4-dir ~/data/tipmip/tas/esm-up2p0-gwl4p0-50y-dn2p0/gmstmon
-```
-
-Rebuilds mapping products in ``mapping/`` when gmstmon is staged,
-then runs each `paper/*.py` script.
-Outputs: `paper/figures/`, `paper/tables/`. Ramp-down steps are skipped if dn gmstmon
-is missing.
-
-Mapping build detail: [building_mappings.md](building_mappings.md).  
-Lighter tutorial: [examples/resample_diagnostic.ipynb](../examples/resample_diagnostic.ipynb).
+See [paper_reproduction.md](paper_reproduction.md) for the full rebuild command and
+per-figure data requirements.
