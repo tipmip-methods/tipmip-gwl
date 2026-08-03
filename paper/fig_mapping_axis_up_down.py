@@ -25,7 +25,9 @@ DEFAULT_MAPPING_DIR = PAPER_DIR.parent / "mapping"
 DEFAULT_OUT = PAPER_DIR / "figures" / "fig_mapping_axis_up_down.png"
 
 GWL_YLIM = (-1.5, 4.5)
-RAMP_UP_XLIM = (-5, 220)
+RAMP_UP_XLIM_LO = -5.0
+RAMP_UP_XLIM_PAD = 12.0
+GWL_CROSS_TARGET = 4.0
 PROTOCOL_RATE = 0.02  # °C yr⁻¹ (2 °C century⁻¹)
 
 DN_BRANCH_LABELS: tuple[tuple[str, str, tuple[float, float]], ...] = (
@@ -62,6 +64,20 @@ def _plot_maps(
         ax.plot(t, axis, lw=2.2, color=color, label=label, zorder=3)
         ax.plot(t, anom, lw=0.8, alpha=0.35, color=color, zorder=2)
     return t_max
+
+
+def _first_time_at_gwl(maps: dict[str, Path], gwl_target: float) -> float | None:
+    """Latest across models of first t where ``gwl_axis`` ≥ target."""
+    t_at: list[float] = []
+    for path in maps.values():
+        with xr.open_dataset(path) as ds:
+            years = np.asarray(ds["year"].values, dtype=float)
+            t = years - years[0]
+            axis = np.asarray(ds["gwl_axis"].values, dtype=float)
+        hit = t[axis >= gwl_target]
+        if hit.size:
+            t_at.append(float(hit[0]))
+    return max(t_at) if t_at else None
 
 
 def _plot_rampdown_panel(
@@ -135,7 +151,7 @@ def main(
 
     t_up = _plot_maps(ax_up, up_maps, colors, legend=True)
     _gwl_reference_lines(ax_up)
-    xs = np.array([0.0, min(t_up, 4.0 / PROTOCOL_RATE)])
+    xs = np.array([0.0, min(t_up, GWL_CROSS_TARGET / PROTOCOL_RATE)])
     ax_up.plot(
         xs,
         PROTOCOL_RATE * xs,
@@ -152,7 +168,9 @@ def main(
 
     ax_up.set_ylabel(r"GWL ($\degree$C)")
     ax_up.set_ylim(*GWL_YLIM)
-    ax_up.set_xlim(*RAMP_UP_XLIM)
+    t_at_4 = _first_time_at_gwl(up_maps, GWL_CROSS_TARGET)
+    x_up_hi = (t_at_4 + RAMP_UP_XLIM_PAD) if t_at_4 is not None else (t_up + RAMP_UP_XLIM_PAD)
+    ax_up.set_xlim(RAMP_UP_XLIM_LO, x_up_hi)
     if t_dn > 0:
         ax_dn.set_xlim(-2, t_dn + 5)
 

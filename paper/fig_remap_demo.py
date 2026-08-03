@@ -124,6 +124,16 @@ def main(mlotst_dir, mapping_dir, out_path):
         color="0.35",
         zorder=5,
     )
+    fig.text(
+        (x0 + x1) / 2,
+        mid_y - 0.028,
+        "Time → GWL",
+        ha="center",
+        va="top",
+        fontsize=10,
+        color="0.35",
+        zorder=5,
+    )
 
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
