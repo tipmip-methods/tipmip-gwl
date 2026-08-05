@@ -84,6 +84,7 @@ def main(
     have_dn4 = dn4_dir is not None and dn4_dir.exists()
 
     print("=== [0/10] rebuilding mapping products (ramp-up) ===")
+    print(f"  mapping output: {mapping_dir}")
     written, skipped = write_products(up2p0_dir, picontrol_dir, mapping_dir)
     _report_written(written, skipped)
 

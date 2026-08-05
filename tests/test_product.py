@@ -65,9 +65,8 @@ def pi_control_file(tmp_path):
 
 
 def test_branch_year_outside_picontrol_span_still_maps(tmp_path, pi_control_file):
-    # Mirrors NorESM2-LM: decoded branch year 1600 predates the staged control
-    # (1851-2100). Mapping must proceed with a full-mean fallback baseline, and
-    # the out-of-span condition should surface as a warning on the output dataset.
+    # Any model whose decoded branch predates staged piControl must still map
+    # with a full-mean fallback baseline (regression guard).
     parent_units = "days since 0001-01-01"
     branch_year = 1600
     ru_path = tmp_path / "ru.nc"
@@ -77,23 +76,52 @@ def test_branch_year_outside_picontrol_span_still_maps(tmp_path, pi_control_file
         n_years=50,
         trend_per_year=0.02,
         attrs={
-            "source_id": "NorESM2-LM-like",
+            "source_id": "OUT-OF-SPAN-MODEL",
             "experiment_id": "esm-up2p0",
             "branch_method": "standard",
             "branch_time_in_parent": _branch_time_in_parent(branch_year, parent_units),
             "parent_time_units": parent_units,
-            "parent_source_id": "NorESM2-LM-like",
+            "parent_source_id": "OUT-OF-SPAN-MODEL",
             "parent_experiment_id": "esm-piControl",
         },
     )
 
-    out = build_mapping_dataset("NorESM2-LM-like", ru_path, pi_control_file)
+    out = build_mapping_dataset("OUT-OF-SPAN-MODEL", ru_path, pi_control_file)
 
     assert out.attrs["baseline_method"] == "full_piControl_mean"
     assert "mapping_warnings" in out.attrs
     assert "outside staged piControl span" in out.attrs["mapping_warnings"]
     assert np.isfinite(out["baseline_gmsat"].values)
     assert np.isfinite(out["max_gwl_reached"].values)
+
+
+def test_noresm_branch_at_picontrol_start_uses_trailing_window(tmp_path, pi_control_file):
+    """NorESM2-LM: branch at first piControl year (1851) -> 31-yr trailing baseline."""
+    parent_units = "days since 0001-01-01"
+    branch_year = 1851
+    ru_path = tmp_path / "ru.nc"
+    _write_monthly_tas(
+        ru_path,
+        start_year=1850,
+        n_years=50,
+        trend_per_year=0.02,
+        attrs={
+            "source_id": "NorESM2-LM",
+            "experiment_id": "esm-up2p0",
+            "branch_method": "standard",
+            "branch_time_in_parent": _branch_time_in_parent(branch_year, parent_units),
+            "parent_time_units": parent_units,
+            "parent_source_id": "NorESM2-LM",
+            "parent_experiment_id": "esm-piControl",
+        },
+    )
+
+    out = build_mapping_dataset("NorESM2-LM", ru_path, pi_control_file)
+
+    assert int(out["branch_year"].values) == branch_year
+    assert out.attrs["baseline_method"] == "branch_window_31yr_trailing"
+    assert "outside staged piControl span" not in out.attrs.get("mapping_warnings", "")
+    assert np.isfinite(out["baseline_gmsat"].values)
 
 
 def test_missing_picontrol_raises_not_mappable(tmp_path):

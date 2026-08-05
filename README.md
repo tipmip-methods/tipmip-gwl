@@ -64,7 +64,7 @@ Each file is a **coordinate product** (`year_of_gwl`, `gwl_axis`, baseline metad
 | GISS-E2-1-G-CC2 | ✅ | 31-yr centred mean at branch |
 | IPSL-CM6-ESMCO2 | ✅ | 31-yr centred mean at branch |
 | MIROC-ES2L | ✅ | 31-yr centred mean at branch |
-| NorESM2-LM | ✅ | full piControl mean (branch year outside staged piControl) |
+| NorESM2-LM | ✅ | 31-yr trailing mean at branch (1851; patch CMIP attrs) |
 | UKESM1-2-LL | ✅ | 31-yr centred mean at branch |
 
 **Baseline rules:** when CMIP branch metadata decodes to a year inside the staged piControl record, the reference is the **31-yr mean centred on that branch year**; if the centred window would start before piControl begins (branch at control start), the first **31-yr trailing** segment is used instead. Otherwise the **full piControl mean** is used. Full diagnostics: `paper/tables/table_baseline_diagnostics.csv` (Appendix A1).

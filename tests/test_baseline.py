@@ -67,13 +67,19 @@ def test_resolve_branch_year_warns_when_parent_declared_but_year_undecodable():
 
 
 def test_resolve_branch_year_out_of_span_warns_not_raises():
-    # NorESM2-LM: branch 1600, control 1851-2100. Must warn and fall back to
-    # full piControl mean at compute_baseline time, not raise here.
     bi = BranchInfo(year=1600)
     pi_years = np.arange(1851, 2101)
     branch, warns = resolve_branch_year(bi, "NorESM2-LM", pi_years=pi_years)
     assert branch == 1600
     assert any("outside staged piControl span" in w for w in warns)
+
+
+def test_resolve_branch_year_noresm_patched_in_span():
+    bi = BranchInfo(year=1851)
+    pi_years = np.arange(1851, 2101)
+    branch, warns = resolve_branch_year(bi, "NorESM2-LM", pi_years=pi_years)
+    assert branch == 1851
+    assert warns == []
 
 
 def test_resolve_branch_year_in_span_has_no_warning():
@@ -128,6 +134,14 @@ def test_compute_baseline_trailing_window_at_picontrol_start():
     base = compute_baseline(years, vals, branch_year=271)
     assert base.method == "branch_window_31yr_trailing"
     assert base.reference == pytest.approx(287.7, abs=1e-9)
+
+
+def test_compute_baseline_noresm_trailing_at_1851():
+    years = np.arange(1851, 2101)
+    vals = np.full(years.size, 287.6)
+    base = compute_baseline(years, vals, branch_year=1851)
+    assert base.method == "branch_window_31yr_trailing"
+    assert base.reference == pytest.approx(287.6, abs=1e-9)
 
 
 def test_compute_baseline_out_of_span_uses_full_mean():

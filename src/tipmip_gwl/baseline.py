@@ -38,6 +38,7 @@ KNOWN_BRANCH_YEARS = {
     "GISS-E2-1-G-CC2": 2156,
     "IPSL-CM6-ESMCO2": 1850,
     "EC-Earth3-ESM-1": 1850,
+    "NorESM2-LM": 1851,  # patched; CMIP attrs wrongly decode to 1600
     "UKESM1-2-LL": 2277,  # manually patched; branched from piControl year 2277
 }
 

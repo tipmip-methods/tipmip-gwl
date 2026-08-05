@@ -89,7 +89,12 @@ python paper/build_all.py
 
 ### NorESM2-LM
 
-- Branch year outside staged piControl span → full piControl mean baseline.
+- CMIP ``branch_time_in_parent`` wrongly decodes to **1600**; correct branch is **1851**
+  (first piControl year, confirmed by NorESM maintainers).
+- Patch staged attrs: ``scripts/fix_noresm_branch_attrs.py --apply`` (before gmstmon /
+  mapping rebuild). Baseline is then the **31-yr trailing** piControl window at 1851.
+- Extended piControl (beyond 2100) improves drift statistics only; branch window at 1851
+  is unchanged once 1851–1881 is present.
 
 ### Relabelled GWL axis is unevenly spaced
 
