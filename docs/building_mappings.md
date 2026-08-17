@@ -47,11 +47,11 @@ the mapping baseline — annual means are computed on read with days-in-month we
 |-------|--------|
 | Duplicate months | Dropped after chunk merge |
 | Backend | `auto` (CDO if installed) or `xarray` |
-| UKESM attrs | Patch branch year: `scripts/fix_ukesm_branch_attrs.py --apply` |
-| NorESM attrs | Patch branch year 1851: `scripts/fix_noresm_branch_attrs.py --apply` |
+| UKESM attrs | `scripts/fix_branch_attrs.py --model UKESM1-2-LL --apply` |
+| NorESM attrs | `scripts/fix_branch_attrs.py --model NorESM2-LM --apply` (branch year 1851) |
+| CESM2 attrs | `scripts/fix_branch_attrs.py --model CESM2 --apply` (branch year 81) |
 
-Other helpers: `scripts/fix_ukesm_branch_attrs.py`, `scripts/fix_noresm_branch_attrs.py`
-— see [scripts/README.md](../scripts/README.md).
+See [scripts/README.md](../scripts/README.md).
 
 ## Build mappings
 

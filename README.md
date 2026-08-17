@@ -58,7 +58,7 @@ Each file is a **coordinate product** (`year_of_gwl`, `gwl_axis`, baseline metad
 | Model | Included | Baseline (piControl reference) |
 |-------|:--------:|--------------------------------|
 | ACCESS-ESM1-5 | ✅ | 31-yr trailing mean at branch |
-| CESM2 | ✅ | full piControl mean (no branch year in metadata) |
+| CESM2 | ✅ | 31-yr centred mean at branch (81; patch CMIP attrs) |
 | EC-Earth3-ESM-1 | ✅ | 31-yr trailing mean at branch |
 | GFDL-ESM2M | ✅ | 31-yr centred mean at branch |
 | GISS-E2-1-G-CC2 | ✅ | 31-yr centred mean at branch |

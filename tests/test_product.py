@@ -34,7 +34,7 @@ def _write_monthly_tas(
 ):
     n_months = n_years * 12
     time = xr.date_range(
-        start=f"{start_year}-01-01",
+        start=f"{int(start_year):04d}-01-01",
         periods=n_months,
         freq="MS",
         calendar=CALENDAR,
@@ -121,6 +121,36 @@ def test_noresm_branch_at_picontrol_start_uses_trailing_window(tmp_path, pi_cont
     assert int(out["branch_year"].values) == branch_year
     assert out.attrs["baseline_method"] == "branch_window_31yr_trailing"
     assert "outside staged piControl span" not in out.attrs.get("mapping_warnings", "")
+    assert np.isfinite(out["baseline_gmsat"].values)
+
+
+def test_cesm2_patched_branch_uses_centred_window(tmp_path):
+    """CESM2: branch at piControl year 81 -> 31-yr centred baseline."""
+    pi_path = tmp_path / "pi.nc"
+    _write_monthly_tas(pi_path, start_year=1, n_years=714)
+    parent_units = "days since 0001-01-01"
+    branch_year = 81
+    ru_path = tmp_path / "ru.nc"
+    _write_monthly_tas(
+        ru_path,
+        start_year=1,
+        n_years=250,
+        trend_per_year=0.02,
+        attrs={
+            "source_id": "CESM2",
+            "experiment_id": "esm-up2p0",
+            "branch_method": "standard",
+            "branch_time_in_parent": _branch_time_in_parent(branch_year, parent_units),
+            "parent_time_units": parent_units,
+            "parent_source_id": "CESM2",
+            "parent_experiment_id": "esm-piControl",
+        },
+    )
+
+    out = build_mapping_dataset("CESM2", ru_path, pi_path)
+    assert "mapping_warnings" not in out.attrs
+    assert int(out["branch_year"].values) == branch_year
+    assert out.attrs["baseline_method"] == "branch_window_31yr"
     assert np.isfinite(out["baseline_gmsat"].values)
 
 

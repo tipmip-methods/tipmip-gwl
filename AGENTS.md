@@ -85,16 +85,23 @@ python paper/build_all.py
 ### UKESM metadata
 
 - Branch year **2277** via `baseline.KNOWN_BRANCH_YEARS`.
-- Patch staged attrs: `scripts/fix_ukesm_branch_attrs.py --apply`.
+- Patch staged attrs: `scripts/fix_branch_attrs.py --model UKESM1-2-LL --apply`.
 
 ### NorESM2-LM
 
 - CMIP ``branch_time_in_parent`` wrongly decodes to **1600**; correct branch is **1851**
   (first piControl year, confirmed by NorESM maintainers).
-- Patch staged attrs: ``scripts/fix_noresm_branch_attrs.py --apply`` (before gmstmon /
-  mapping rebuild). Baseline is then the **31-yr trailing** piControl window at 1851.
+- Patch staged attrs: ``scripts/fix_branch_attrs.py --model NorESM2-LM --apply`` (before
+  gmstmon / mapping rebuild). Baseline is then the **31-yr trailing** piControl window at 1851.
 - Extended piControl (beyond 2100) improves drift statistics only; branch window at 1851
   is unchanged once 1851–1881 is present.
+
+### CESM2
+
+- Published files lack ``branch_time_in_parent``, ``experiment_id``, and ``source_id``.
+- Correct branch: piControl **year 81** (1 Jan restart; CESM group, Jan 2026).
+- Patch staged attrs: ``scripts/fix_branch_attrs.py --model CESM2 --apply``. Baseline is then
+  the **31-yr centred** piControl window at year 81.
 
 ### Relabelled GWL axis is unevenly spaced
 

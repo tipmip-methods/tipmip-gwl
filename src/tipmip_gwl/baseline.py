@@ -34,6 +34,7 @@ from . import mapping
 # Branch years independently decoded from headers (optional cross-check).
 # A mismatch here flags a metadata/units problem, not science.
 KNOWN_BRANCH_YEARS = {
+    "CESM2": 81,  # patched; branched from piControl year 81 (Jan 2026)
     "GFDL-ESM2M": 1961,
     "GISS-E2-1-G-CC2": 2156,
     "IPSL-CM6-ESMCO2": 1850,

@@ -82,6 +82,22 @@ def test_resolve_branch_year_noresm_patched_in_span():
     assert warns == []
 
 
+def test_resolve_branch_year_cesm2_patched_in_span():
+    bi = BranchInfo(year=81)
+    pi_years = np.arange(1, 715)
+    branch, warns = resolve_branch_year(bi, "CESM2", pi_years=pi_years)
+    assert branch == 81
+    assert warns == []
+
+
+def test_compute_baseline_cesm2_centred_at_81():
+    years = np.arange(1, 715)
+    vals = np.full(years.size, 287.25)
+    base = compute_baseline(years, vals, branch_year=81)
+    assert base.method == "branch_window_31yr"
+    assert base.reference == pytest.approx(287.25, abs=1e-9)
+
+
 def test_resolve_branch_year_in_span_has_no_warning():
     bi = BranchInfo(year=1950)
     pi_years = np.arange(1850, 2101)
