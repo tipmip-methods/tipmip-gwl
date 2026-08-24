@@ -128,7 +128,7 @@ def plot_diagnostics(diags, outdir, *, model_colors=None, rampup=True, picontrol
         except Exception:
             y_min, y_max = None, None
 
-        figB, axes = plt.subplots(nrow, ncol, figsize=(9, 2.6 * nrow), sharey=True)
+        figB, axes = plt.subplots(nrow, ncol, figsize=(12, 3 * nrow), sharey=True)
 
         for ax_idx, (ax, d) in enumerate(zip(axes.flat, pmodels)):
             ax.plot(d.pi_years, d.pi_gmsat, color="k", lw=0.8)

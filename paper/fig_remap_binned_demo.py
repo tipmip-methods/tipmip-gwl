@@ -25,12 +25,6 @@ if str(_PAPER) not in sys.path:
 import matplotlib.pyplot as plt
 import numpy as np
 import xarray as xr
-from matplotlib.lines import Line2D
-from matplotlib.ticker import FormatStrFormatter
-
-from tipmip_gwl.mapping import GWL_GRID_STEP, gwl_grid
-from tipmip_gwl.product import relabel_to_gwl, resample_to_gwl
-
 from helper_mlotst_remap import (
     GLOBAL_MLOTST_YLABEL,
     area_weighted_global_mean,
@@ -40,6 +34,11 @@ from helper_mlotst_remap import (
     mapping_index_by_rampup_model,
 )
 from helper_paper_style import model_color_map
+from matplotlib.lines import Line2D
+from matplotlib.ticker import FormatStrFormatter
+
+from tipmip_gwl.mapping import GWL_GRID_STEP, gwl_grid
+from tipmip_gwl.product import relabel_to_gwl, resample_to_gwl
 
 PAPER_DIR = Path(__file__).resolve().parent
 
@@ -255,7 +254,7 @@ def main(
     colors = model_color_map(list(models))
     styles = [dict(color=colors[m], label=m) for m in models]
 
-    fig, ax = plt.subplots(figsize=(7.2, 4.2))
+    fig, ax = plt.subplots(figsize=(6, 4))
     _plot(
         ax,
         series,
